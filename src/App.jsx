@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Play, Stop, DownloadSimple, Plus, SquaresFour, Stack, Trash, DotsSixVertical, AlignLeft, AlignCenterHorizontal, AlignRight, AlignTop, AlignCenterVertical, AlignBottom, Rows, Columns, CaretDown } from '@phosphor-icons/react'
+import { Play, Stop, DownloadSimple, Plus, SquaresFour, Stack, Trash, DotsSixVertical, AlignLeft, AlignCenterHorizontal, AlignRight, AlignTop, AlignCenterVertical, AlignBottom, Rows, Columns, CaretDown, Camera } from '@phosphor-icons/react'
 import * as Mp4Muxer from 'mp4-muxer'
+import { BgColorPicker } from './ColorPicker'
+import './ColorPicker.css'
 import './App.css'
 
 const FORMAT_PRESETS = {
@@ -233,6 +235,123 @@ function EasingDropdown({ value, onChange }) {
   )
 }
 
+const rc = (f) => `/wallpapers/raycast/${f}.jpg`
+const rs = (f) => `/wallpapers/resend/${f}.jpg`
+const WALLPAPER_PRESETS = [
+  // Distortion
+  { name: 'Glaze 1', url: rc('glaze_1_preview') },
+  { name: 'Glaze 2', url: rc('glaze_2_preview') },
+  { name: 'Red Distortion 1', url: rc('red_distortion_1_preview') },
+  { name: 'Red Distortion 2', url: rc('red_distortion_2_preview') },
+  { name: 'Red Distortion 3', url: rc('red_distortion_3_preview') },
+  { name: 'Red Distortion 4', url: rc('red_distortion_4_preview') },
+  { name: 'Blue Distortion 1', url: rc('blue_distortion_1_preview') },
+  { name: 'Blue Distortion 2', url: rc('blue_distortion_2_preview') },
+  { name: 'Mono Dark 1', url: rc('mono_dark_distortion_1_preview') },
+  { name: 'Mono Dark 2', url: rc('mono_dark_distortion_2_preview') },
+  { name: 'Mono Light 1', url: rc('mono_light_distortion_1_preview') },
+  { name: 'Mono Light 2', url: rc('mono_light_distortion_2_preview') },
+  // Chromatic
+  { name: 'Chromatic Dark 1', url: rc('chromatic_dark_1_preview') },
+  { name: 'Chromatic Dark 2', url: rc('chromatic_dark_2_preview') },
+  { name: 'Chromatic Light 1', url: rc('chromatic_light_1_preview') },
+  { name: 'Chromatic Light 2', url: rc('chromatic_light_2_preview') },
+  // 3D
+  { name: 'Cube', url: rc('cube_prod_preview') },
+  { name: 'Cube Mono', url: rc('cube_mono_preview') },
+  { name: 'Loupe', url: rc('loupe-preview') },
+  { name: 'Loupe Dark', url: rc('loupe-mono-dark-preview') },
+  { name: 'Blob', url: rc('blob-preview') },
+  { name: 'Blob Red', url: rc('blob-red-preview') },
+  // Nature
+  { name: 'Autumnal Peach', url: rc('autumnal-peach-preview') },
+  { name: 'Blossom', url: rc('blossom-2-preview') },
+  { name: 'Blushing Fire', url: rc('blushing-fire-preview') },
+  { name: 'Bright Rain', url: rc('bright-rain-preview') },
+  { name: 'Floss', url: rc('floss-preview') },
+  { name: 'Glass Rainbow', url: rc('glass-rainbow-preview') },
+  { name: 'Good Vibes', url: rc('good-vibes-preview') },
+  { name: 'Moonrise', url: rc('moonrise-preview') },
+  { name: 'Ray of Lights', url: rc('ray-of-lights-preview') },
+  { name: 'Rose Thorn', url: rc('rose-thorn-preview') },
+  // Resend
+  ...['1-a','1-b','1-c','2-a','2-b','2-c','3-a','3-b','3-c','4-a','4-b','4-c','5-a','5-b','5-c','6-a','6-b','6-c','7-a','7-b','7-c','8-a','8-b','8-c'].map(id => ({
+    name: `Resend ${id}`, url: rs(id),
+  })),
+]
+
+const BG_PRESETS = {
+  'Gradients': [
+    // Muted vibrant
+    'linear-gradient(135deg, #c4475a, #d4616e)',
+    'linear-gradient(135deg, #556bb8, #654a8c)',
+    'linear-gradient(135deg, #3ab880, #35c4ab)',
+    'linear-gradient(135deg, #c8607f, #d4b450)',
+    'linear-gradient(135deg, #8a76ae, #cfaad8)',
+    'linear-gradient(135deg, #4590d0, #1ec4d0)',
+    'linear-gradient(135deg, #5616a0, #2468cc)',
+    'linear-gradient(135deg, #9424cc, #24aed0)',
+    'linear-gradient(135deg, #cc1a42, #d49a80)',
+    'linear-gradient(135deg, #c47cd4, #c4475a)',
+    // Warm
+    'linear-gradient(45deg, #d48888, #d4b8ac)',
+    'linear-gradient(120deg, #ccb358, #d08c72)',
+    'linear-gradient(135deg, #d4ad60, #cc6830)',
+    'linear-gradient(135deg, #d0ab7a, #ae6cc0)',
+    'linear-gradient(135deg, #c4b496, #947450)',
+    // Cool
+    'linear-gradient(120deg, #8aa8d0, #a8c8d8)',
+    'linear-gradient(135deg, #bca8d4, #80a8d0)',
+    'linear-gradient(120deg, #72cc96, #78b0c8)',
+    'linear-gradient(135deg, #78a8d0, #1a4888)',
+    'linear-gradient(135deg, #a0c0cc, #303050)',
+    // Raycast
+    'linear-gradient(140deg, #a82a7c, #5834c0)',
+    'linear-gradient(140deg, #8a78cc, #c4a4d0)',
+    'linear-gradient(140deg, #cc5454, #603030)',
+    'linear-gradient(140deg, #4aac80, #887428)',
+    'linear-gradient(140deg, #40a4a4, #1c1c2c)',
+    // Multi-stop
+    'linear-gradient(135deg, #182458, #8c1c1c, #cc9c28)',
+    'linear-gradient(135deg, #0c0a20, #282450, #1e1e34)',
+    'linear-gradient(to right, #cc6c64, #8c2448)',
+    'linear-gradient(120deg, #a8cc64, #7cbc84)',
+    'linear-gradient(to top, #d4b8ac, #d8b4d8)',
+  ],
+  'Mesh': [
+    'radial-gradient(at 40% 20%, #e73c7e 0%, transparent 50%), radial-gradient(at 80% 0%, #ee7752 0%, transparent 50%), radial-gradient(at 0% 50%, #23a6d5 0%, transparent 50%), radial-gradient(at 80% 80%, #23d5ab 0%, transparent 50%), #0f0f0f',
+    'radial-gradient(at 0% 0%, #7928ca 0%, transparent 50%), radial-gradient(at 100% 0%, #ff0080 0%, transparent 50%), radial-gradient(at 100% 100%, #ff4d4d 0%, transparent 50%), radial-gradient(at 0% 100%, #0070f3 0%, transparent 50%), #0a0a0a',
+    'radial-gradient(at 20% 80%, #fbc2eb 0%, transparent 50%), radial-gradient(at 80% 20%, #a6c1ee 0%, transparent 50%), radial-gradient(at 50% 50%, #fad0c4 0%, transparent 50%), #1a1a2e',
+    'radial-gradient(at 30% 0%, #00d2ff 0%, transparent 50%), radial-gradient(at 100% 50%, #3a7bd5 0%, transparent 50%), radial-gradient(at 0% 100%, #00b09b 0%, transparent 50%), #0a0a0a',
+    'radial-gradient(at 50% 0%, #9796f0 0%, transparent 50%), radial-gradient(at 100% 100%, #fbc7d4 0%, transparent 50%), radial-gradient(at 0% 50%, #c2e9fb 0%, transparent 50%), #111',
+    'radial-gradient(at 0% 0%, #ff6a00 0%, transparent 50%), radial-gradient(at 100% 0%, #ee0979 0%, transparent 50%), radial-gradient(at 50% 100%, #ff6a00 0%, transparent 50%), #0f0f0f',
+    'radial-gradient(at 50% 0%, #f7971e 0%, transparent 50%), radial-gradient(at 100% 50%, #ffd200 0%, transparent 50%), radial-gradient(at 0% 100%, #f7971e 0%, transparent 50%), #1a0a00',
+    'radial-gradient(at 0% 50%, #8b5cf6 0%, transparent 50%), radial-gradient(at 100% 0%, #06b6d4 0%, transparent 50%), radial-gradient(at 80% 100%, #ec4899 0%, transparent 50%), #0c0c14',
+    'radial-gradient(at 40% 0%, #3b82f6 0%, transparent 50%), radial-gradient(at 100% 100%, #8b5cf6 0%, transparent 50%), radial-gradient(at 0% 80%, #06b6d4 0%, transparent 50%), #050510',
+    'radial-gradient(at 80% 20%, #f43f5e 0%, transparent 50%), radial-gradient(at 0% 80%, #a855f7 0%, transparent 50%), radial-gradient(at 50% 50%, #3b82f6 0%, transparent 50%), #0a0a12',
+  ],
+  'Dark': [
+    'linear-gradient(135deg, #0f0f0f, #1a1a2e)',
+    'linear-gradient(135deg, #16222a, #3a6073)',
+    'linear-gradient(135deg, #141e30, #243b55)',
+    'linear-gradient(135deg, #0f2027, #203a43, #2c5364)',
+    'linear-gradient(135deg, #1f1c2c, #928dab)',
+    'linear-gradient(140deg, #232323, #1F1F1F)',
+    'linear-gradient(140deg, #0a2540, #0a2540)',
+    'linear-gradient(135deg, #506853, #213223)',
+    'linear-gradient(140deg, #333, #181818)',
+    'linear-gradient(135deg, #08203e, #557c93)',
+  ],
+  'Solid': [
+    '#ffffff', '#f5f5f5', '#e5e5e5', '#d4d4d4',
+    '#171717', '#0a0a0a', '#000000', '#1e293b',
+    '#ef4444', '#f97316', '#eab308', '#22c55e',
+    '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4',
+    '#fef3c7', '#dbeafe', '#dcfce7', '#fce7f3',
+    '#334155', '#14b8a6', '#f43f5e', '#0ea5e9',
+  ],
+}
+
 const isMac = typeof navigator !== 'undefined' && navigator.platform?.includes('Mac')
 const modKey = isMac ? '⌘' : 'Ctrl'
 
@@ -289,6 +408,9 @@ function App() {
   const [selectedIds, setSelectedIds] = useState([])
   const [isPlaying, setIsPlaying] = useState(false)
   const [artboardBg, setArtboardBg] = useState(() => loadSession('artboardBg', '#ffffff'))
+  const [expandedBgGroups, setExpandedBgGroups] = useState([])
+  const [bgPickerOpen, setBgPickerOpen] = useState(false)
+  const [autoFitDuration, setAutoFitDuration] = useState(true)
   const [playbackTime, setPlaybackTime] = useState(0)
   const [dragging, setDragging] = useState(null)
   const [canvasDragOver, setCanvasDragOver] = useState(false)
@@ -296,16 +418,17 @@ function App() {
   const [sidebarDragOver, setSidebarDragOver] = useState(null)
   // Batch sequence controls
   const [batchAnimation, setBatchAnimation] = useState('fadeIn')
-  const [batchEasing, setBatchEasing] = useState('ease-out')
+  const [batchEasing, setBatchEasing] = useState('ease-out-cubic')
   const [batchAnimDuration, setBatchAnimDuration] = useState(0.6)
   const [batchDelay, setBatchDelay] = useState(0.2)
   const [batchOverlap, setBatchOverlap] = useState(0)
-  const [batchExitAnimation, setBatchExitAnimation] = useState(false)
+  const [batchExitAnimation, setBatchExitAnimation] = useState(true)
   const [batchExitType, setBatchExitType] = useState('fadeIn')
-  const [batchExitEasing, setBatchExitEasing] = useState('ease-in')
-  const [batchExitDuration, setBatchExitDuration] = useState(0.6)
-  const [showFirstFrame, setShowFirstFrame] = useState(false)
+  const [batchExitEasing, setBatchExitEasing] = useState('linear')
+  const [batchExitDuration, setBatchExitDuration] = useState(0.3)
+  const [showFirstFrame, setShowFirstFrame] = useState(true)
   const [firstFrameDuration, setFirstFrameDuration] = useState(0.5)
+  const [firstFrameDelay, setFirstFrameDelay] = useState(0.3)
   // Canvas zoom & pan
   const [canvasZoom, setCanvasZoom] = useState(null) // null = auto-fit
   const [canvasPan, setCanvasPan] = useState({ x: 0, y: 0 })
@@ -424,12 +547,12 @@ function App() {
       }
 
       // Cmd+Option+1 / Ctrl+Alt+1 = Design tab, Cmd+Option+2 / Ctrl+Alt+2 = Animate tab
-      if ((e.metaKey || e.ctrlKey) && e.altKey && e.key === '1') {
+      if (!isPlaying && (e.metaKey || e.ctrlKey) && e.altKey && (e.key === '1' || e.code === 'Digit1')) {
         e.preventDefault()
         setActiveTab('design')
         return
       }
-      if ((e.metaKey || e.ctrlKey) && e.altKey && e.key === '2') {
+      if (!isPlaying && (e.metaKey || e.ctrlKey) && e.altKey && (e.key === '2' || e.code === 'Digit2')) {
         e.preventDefault()
         setActiveTab('animate')
         return
@@ -516,8 +639,7 @@ function App() {
       )
     ).then((loaded) => {
       setImagesWithUndo((prev) => {
-        const startIdx = prev.length
-        return [
+        const all = [
           ...prev,
           ...loaded.map((item, i) => ({
             id: Date.now() + Math.random() + i,
@@ -527,20 +649,27 @@ function App() {
             y: 0,
             width: item.naturalWidth,
             height: item.naturalHeight,
-            animation: 'fadeIn',
-            easing: 'ease-out',
-            animDuration: 0.6,
-            delay: (startIdx + i) * 0.3,
-            exitAnimation: false,
-            exitType: 'fadeIn',
-            exitEasing: 'ease-in',
-            exitDuration: 0.6,
-            exitDelay: 0.3,
           })),
         ]
+        // Apply batch sequence to all images
+        let cycle = batchAnimDuration + batchDelay
+        if (batchExitAnimation) cycle += batchExitDuration
+        const step = Math.max(0.05, cycle - batchOverlap)
+        return all.map((img, i) => ({
+          ...img,
+          animation: img.animation || batchAnimation,
+          easing: img.easing || batchEasing,
+          animDuration: img.animDuration || batchAnimDuration,
+          delay: +(i * step).toFixed(2),
+          exitAnimation: batchExitAnimation,
+          exitType: img.exitType || batchExitType,
+          exitEasing: img.exitEasing || batchExitEasing,
+          exitDuration: img.exitDuration || batchExitDuration,
+          exitDelay: img.exitDelay || batchDelay,
+        }))
       })
     })
-  }, [setImagesWithUndo])
+  }, [setImagesWithUndo, batchAnimation, batchEasing, batchAnimDuration, batchDelay, batchOverlap, batchExitAnimation, batchExitType, batchExitEasing, batchExitDuration])
 
   const handleImageUpload = (e) => {
     addImageFiles(e.target.files)
@@ -602,7 +731,7 @@ function App() {
       }))
     )
     // Auto-fit duration
-    const offset = showFirstFrame ? firstFrameDuration : 0
+    const offset = showFirstFrame ? firstFrameDuration + firstFrameDelay : 0
     const lastStart = (images.length - 1) * step
     let needed = lastStart + batchAnimDuration + offset
     if (batchExitAnimation) needed += batchDelay + batchExitDuration
@@ -610,7 +739,7 @@ function App() {
   }
 
   const getContentDuration = () => {
-    const offset = showFirstFrame ? firstFrameDuration : 0
+    const offset = showFirstFrame ? firstFrameDuration + firstFrameDelay : 0
     let maxEnd = 0
     for (const img of images) {
       let end = img.delay + img.animDuration
@@ -626,6 +755,15 @@ function App() {
     if (images.length === 0) return
     setDuration(getContentDuration())
   }
+
+  // Compute a fingerprint of all timing-related values
+  const timingFingerprint = images.map(img => `${img.delay}|${img.animDuration}|${img.exitAnimation}|${img.exitDuration}|${img.exitDelay}`).join(',')
+
+  // Auto-fit duration when anything affecting total time changes
+  useEffect(() => {
+    if (!autoFitDuration || images.length === 0) return
+    setDuration(getContentDuration())
+  }, [timingFingerprint, autoFitDuration, showFirstFrame, firstFrameDuration, firstFrameDelay, images.length])
 
   // Alignment functions — forceArtboard=true aligns to artboard even with multi-select
   const alignSelected = (alignment, forceArtboard = false) => {
@@ -1080,18 +1218,25 @@ function App() {
   }
 
   const getImageAnimStyle = (img) => {
-    if (!isPlaying) return { opacity: 1, transform: 'none' }
+    if (!isPlaying && playbackTime === 0) {
+      if (activeTab === 'animate') {
+        // Show the actual frame 0 state — run through the animation logic at t=0
+      } else {
+        return { opacity: 1, transform: 'none' }
+      }
+    }
     const t = playbackTime
 
     // Show first frame: only the first image visible during hold period
-    if (showFirstFrame && t < firstFrameDuration) {
-      const isFirst = images.length > 0 && img.id === images[0].id
-      return isFirst
-        ? { opacity: 1, transform: 'none' }
-        : { opacity: 0, transform: 'none' }
+    if (showFirstFrame && t < firstFrameDuration + firstFrameDelay) {
+      if (t < firstFrameDuration) {
+        const isFirst = images.length > 0 && img.id === images[0].id
+        return isFirst ? { opacity: 1, transform: 'none' } : { opacity: 0, transform: 'none' }
+      }
+      return { opacity: 0, transform: 'none' }
     }
 
-    const offset = showFirstFrame ? firstFrameDuration : 0
+    const offset = showFirstFrame ? firstFrameDuration + firstFrameDelay : 0
     const enterStart = img.delay + offset
     const enterEnd = enterStart + img.animDuration
 
@@ -1124,18 +1269,45 @@ function App() {
     return { opacity: 1, transform: 'none' }
   }
 
-  // Export
-  const renderFrame = (ctx, loadedImages, t, w, h) => {
-    ctx.clearRect(0, 0, w, h)
-    ctx.fillStyle = artboardBg
-    ctx.fillRect(0, 0, w, h)
+  // Render CSS background (gradient or solid) to a canvas
+  const renderBgToCanvas = async (w, h) => {
+    const div = document.createElement('div')
+    div.style.cssText = `position:fixed;left:-9999px;width:${w}px;height:${h}px;background:${artboardBg}`
+    document.body.appendChild(div)
+    const bgCanvas = document.createElement('canvas')
+    bgCanvas.width = w
+    bgCanvas.height = h
+    const bgCtx = bgCanvas.getContext('2d')
+    // Use createImageBitmap from the div via foreignObject SVG
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml" style="width:${w}px;height:${h}px;background:${artboardBg.replace(/"/g, "'")}"></div></foreignObject></svg>`
+    const blob = new Blob([svg], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    const img = new Image()
+    await new Promise((resolve) => { img.onload = resolve; img.src = url })
+    bgCtx.drawImage(img, 0, 0)
+    URL.revokeObjectURL(url)
+    document.body.removeChild(div)
+    return bgCanvas
+  }
 
-    const offset = showFirstFrame ? firstFrameDuration : 0
+  // Export
+  const renderFrame = (ctx, bgCanvas, loadedImages, t, w, h) => {
+    ctx.clearRect(0, 0, w, h)
+    if (bgCanvas) {
+      ctx.drawImage(bgCanvas, 0, 0)
+    } else {
+      ctx.fillStyle = artboardBg
+      ctx.fillRect(0, 0, w, h)
+    }
+
+    const offset = showFirstFrame ? firstFrameDuration + firstFrameDelay : 0
 
     // During first-frame hold, draw only the first image
-    if (showFirstFrame && t < firstFrameDuration && loadedImages.length > 0) {
-      const first = loadedImages[0]
-      ctx.drawImage(first.el, first.x, first.y, first.width, first.height)
+    if (showFirstFrame && t < firstFrameDuration + firstFrameDelay && loadedImages.length > 0) {
+      if (t < firstFrameDuration) {
+        const first = loadedImages[0]
+        ctx.drawImage(first.el, first.x, first.y, first.width, first.height)
+      }
       return
     }
 
@@ -1198,6 +1370,37 @@ function App() {
     }
   }
 
+  const captureFrame = async () => {
+    const canvas = document.createElement('canvas')
+    canvas.width = artboardWidth
+    canvas.height = artboardHeight
+    const ctx = canvas.getContext('2d')
+
+    let bgCanvas = null
+    if (artboardBg.includes('gradient') || artboardBg.includes('radial') || artboardBg.includes('url(')) {
+      try { bgCanvas = await renderBgToCanvas(artboardWidth, artboardHeight) } catch {}
+    }
+
+    const loadedImages = await Promise.all(
+      images.map((img) => new Promise((resolve) => {
+        const el = new Image()
+        el.onload = () => resolve({ ...img, el })
+        el.src = img.src
+      }))
+    )
+
+    renderFrame(ctx, bgCanvas, loadedImages, playbackTime, artboardWidth, artboardHeight)
+
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `frame-${playbackTime.toFixed(2)}s.png`
+      a.click()
+      URL.revokeObjectURL(url)
+    }, 'image/png')
+  }
+
   const exportAnimation = async () => {
     const canvas = document.createElement('canvas')
     canvas.width = artboardWidth
@@ -1216,6 +1419,12 @@ function App() {
           })
       )
     )
+
+    // Pre-render gradient background
+    let bgCanvas = null
+    if (artboardBg.includes('gradient') || artboardBg.includes('radial') || artboardBg.includes('url(')) {
+      try { bgCanvas = await renderBgToCanvas(artboardWidth, artboardHeight) } catch (e) { console.warn('Bg render failed, using fallback', e) }
+    }
 
     // Use VideoEncoder + mp4-muxer for MP4 export
     const muxer = new Mp4Muxer.Muxer({
@@ -1243,7 +1452,7 @@ function App() {
 
     for (let frame = 0; frame <= totalFrames; frame++) {
       const t = (frame / totalFrames) * duration
-      renderFrame(ctx, loadedImages, t, artboardWidth, artboardHeight)
+      renderFrame(ctx, bgCanvas, loadedImages, t, artboardWidth, artboardHeight)
 
       const videoFrame = new VideoFrame(canvas, {
         timestamp: (frame / fps) * 1_000_000,
@@ -1297,12 +1506,20 @@ function App() {
     <div className="app">
       <div className="topbar">
         <div className="topbar-left">
-          <Stack size={18} weight="fill" color="#3b82f6" />
-          <span className="logo">Sequence</span>
+          <svg width="18" height="17" viewBox="0 0 48 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z" fill="#863bff"/>
+          </svg>
+          <span className="logo">Framey</span>
         </div>
         <div className="topbar-center">
-          <button className={`tab-btn ${activeTab === 'design' ? 'active' : ''}`} onClick={() => setActiveTab('design')} title={`Design (${modKey}+${isMac ? '⌥' : 'Alt'}+1)`}>Design</button>
-          <button className={`tab-btn ${activeTab === 'animate' ? 'active' : ''}`} onClick={() => setActiveTab('animate')} title={`Animate (${modKey}+${isMac ? '⌥' : 'Alt'}+2)`}>Animate</button>
+          <button className={`tab-btn ${activeTab === 'design' ? 'active' : ''}`} onClick={() => setActiveTab('design')}>
+            Design
+            <span className="tab-tooltip">Design <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd><kbd>{isMac ? '⌥' : 'Alt'}</kbd><kbd>1</kbd></span>
+          </button>
+          <button className={`tab-btn ${activeTab === 'animate' ? 'active' : ''}`} onClick={() => setActiveTab('animate')}>
+            Animate
+            <span className="tab-tooltip">Animate <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd><kbd>{isMac ? '⌥' : 'Alt'}</kbd><kbd>2</kbd></span>
+          </button>
         </div>
         <div className="topbar-actions">
           {isPlaying ? (
@@ -1310,6 +1527,7 @@ function App() {
           ) : (
             <button className="btn-play" onClick={playAnimation}><Play size={14} weight="fill" /> Play</button>
           )}
+          <button className="btn-icon" onClick={captureFrame} title="Capture current frame"><Camera size={16} /></button>
           <button className="btn-export" onClick={exportAnimation}><DownloadSimple size={14} weight="bold" /> Export</button>
         </div>
       </div>
@@ -1378,7 +1596,7 @@ function App() {
                   height: artboardHeight,
                   transform: `scale(${scale})`,
                   transformOrigin: 'top left',
-                  backgroundColor: artboardBg,
+                  background: artboardBg,
                 }}
               >
               {images.map((img) => {
@@ -1418,8 +1636,30 @@ function App() {
           {activeTab === 'animate' && images.length > 0 && (
             <div className="timeline" onWheel={(e) => e.stopPropagation()}>
               <div className="timeline-header">
-                <span className="timeline-label">Timeline</span>
-                <span className="timeline-duration">{duration}s</span>
+                <span className="timeline-label">{playbackTime.toFixed(1)}s / {duration}s</span>
+                <div
+                  className="timeline-scrubber"
+                  onMouseDown={(e) => {
+                    e.stopPropagation()
+                    if (isPlaying) stopAnimation()
+                    const bar = e.currentTarget
+                    const update = (ev) => {
+                      const rect = bar.getBoundingClientRect()
+                      const x = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width))
+                      setPlaybackTime(x * duration)
+                    }
+                    update(e)
+                    const move = (ev) => update(ev)
+                    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up) }
+                    window.addEventListener('mousemove', move)
+                    window.addEventListener('mouseup', up)
+                  }}
+                >
+                  <div className="scrubber-track">
+                    <div className="scrubber-fill" style={{ width: `${(playbackTime / duration) * 100}%` }} />
+                    <div className="scrubber-head" style={{ left: `${(playbackTime / duration) * 100}%` }} />
+                  </div>
+                </div>
               </div>
               <div className="timeline-tracks">
                 {images.map((img) => (
@@ -1449,12 +1689,9 @@ function App() {
                     </div>
                   </div>
                 ))}
-                {isPlaying && (
-                  <div
-                    className="playhead"
-                    style={{ left: `${140 + ((window.innerWidth - 760) * playbackTime) / duration}px` }}
-                  />
-                )}
+                <div className="playhead-line" style={{ left: `calc(112px + (100% - 116px) * ${playbackTime / duration})` }}>
+                  <div className="playhead-dot" />
+                </div>
               </div>
             </div>
           )}
@@ -1486,17 +1723,95 @@ function App() {
                 </div>
                 <div className="field">
                   <label>Background</label>
-                  <div className="color-field">
-                    <input type="color" value={artboardBg} onChange={(e) => setArtboardBg(e.target.value)} />
-                    <input type="text" value={artboardBg} onChange={(e) => setArtboardBg(e.target.value)} />
+                  <div className="bg-picker-wrapper">
+                    <div className="bg-picker-trigger-row" onClick={() => setBgPickerOpen(!bgPickerOpen)}>
+                      {artboardBg.includes('gradient') ? (() => {
+                        const colors = artboardBg.match(/#[0-9a-fA-F]{3,8}/g) || []
+                        return <>
+                          <div className="bg-picker-swatch" style={{ background: colors[0] || '#000' }} />
+                          <div className="bg-picker-swatch" style={{ background: colors[1] || '#000' }} />
+                        </>
+                      })() : (
+                        <div className="bg-picker-swatch" style={{ background: artboardBg }} />
+                      )}
+                    </div>
+                    {bgPickerOpen && (<>
+                      <div className="bg-picker-overlay" onClick={() => setBgPickerOpen(false)} />
+                      <div className="bg-picker-popover">
+                        <BgColorPicker value={artboardBg} onChange={setArtboardBg} />
+                      </div>
+                    </>)}
                   </div>
-                </div>
-                <div className="field">
-                  <label>Duration</label>
-                  <div className="duration-field">
-                    <input type="number" value={duration} min={0.5} step={0.5} onChange={(e) => setDuration(+e.target.value)} />
-                    <span>s</span>
-                    <button className="btn-fit" onClick={fitDurationToContent} title="Fit to content">Fit</button>
+                  {Object.entries(BG_PRESETS).map(([group, presets]) => {
+                    const isSolid = group === 'Solid'
+                    const cols = isSolid ? 8 : 5
+                    const maxCollapsed = cols * 2
+                    const needsExpand = presets.length > maxCollapsed
+                    const isExpanded = expandedBgGroups.includes(group)
+                    const shown = isExpanded ? presets : presets.slice(0, maxCollapsed)
+                    return (
+                      <div key={group} className="bg-group">
+                        <div className="bg-group-header">
+                          <span className="bg-group-label">{group}</span>
+                          {needsExpand && (
+                            <button className="bg-expand-btn" onClick={() => setExpandedBgGroups((prev) => prev.includes(group) ? prev.filter((g) => g !== group) : [...prev, group])}>
+                              {isExpanded ? 'Less' : 'More'}
+                            </button>
+                          )}
+                        </div>
+                        <div className={`bg-grid ${isSolid ? 'bg-grid-solid' : ''}`}>
+                          {shown.map((bg, i) => (
+                            <button
+                              key={i}
+                              className={`bg-swatch ${artboardBg === bg ? 'active' : ''}`}
+                              style={{ background: bg }}
+                              onClick={() => setArtboardBg(bg)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  <div className="bg-group">
+                    <div className="bg-group-header">
+                      <span className="bg-group-label">Wallpapers</span>
+                      {WALLPAPER_PRESETS.length > 10 && !expandedBgGroups.includes('Wallpapers') && (
+                        <button className="bg-expand-btn" onClick={() => setExpandedBgGroups((prev) => [...prev, 'Wallpapers'])}>More</button>
+                      )}
+                      {expandedBgGroups.includes('Wallpapers') && (
+                        <button className="bg-expand-btn" onClick={() => setExpandedBgGroups((prev) => prev.filter((g) => g !== 'Wallpapers'))}>Less</button>
+                      )}
+                    </div>
+                    <div className="bg-grid">
+                      {(expandedBgGroups.includes('Wallpapers') ? WALLPAPER_PRESETS : WALLPAPER_PRESETS.slice(0, 10)).map((wp, i) => (
+                        <button
+                          key={i}
+                          className={`bg-swatch bg-swatch-img ${artboardBg === `url(${wp.url}) center/cover` ? 'active' : ''}`}
+                          style={{ backgroundImage: `url(${wp.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+                          onClick={() => setArtboardBg(`url(${wp.url}) center/cover`)}
+                          title={wp.name}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-group">
+                    <button className="bg-upload-btn" onClick={() => document.getElementById('bg-upload-input')?.click()}>
+                      <Plus size={14} /> Upload image
+                    </button>
+                    <input
+                      id="bg-upload-input"
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        const reader = new FileReader()
+                        reader.onload = (ev) => setArtboardBg(`url(${ev.target.result}) center/cover`)
+                        reader.readAsDataURL(file)
+                        e.target.value = ''
+                      }}
+                    />
                   </div>
                 </div>
               </div>
@@ -1583,6 +1898,18 @@ function App() {
             </>
           ) : (
             <>
+              <div className="panel-section">
+                <div className="section-header-row">
+                  <h3>Auto Duration</h3>
+                  <label className="checkbox-label compact" title="Auto-fit duration to content">
+                    <input type="checkbox" checked={autoFitDuration} onChange={(e) => { setAutoFitDuration(e.target.checked); if (e.target.checked) fitDurationToContent() }} />
+                  </label>
+                </div>
+                <div className="field">
+                  <label>Total (s)</label>
+                  <input type="number" value={duration} min={0.5} step={0.5} disabled={autoFitDuration} onChange={(e) => setDuration(+e.target.value)} />
+                </div>
+              </div>
               {!selectedImage && (<>
               <div className="panel-section">
                 <h3>All Sequences — Entry</h3>
@@ -1648,9 +1975,15 @@ function App() {
                   </label>
                 </div>
                 {showFirstFrame && (
-                  <div className="field">
-                    <label>Hold (s)</label>
-                    <input type="number" value={firstFrameDuration} step={0.1} min={0.1} onChange={(e) => setFirstFrameDuration(+e.target.value)} />
+                  <div className="field-row">
+                    <div className="field">
+                      <label>Hold (s)</label>
+                      <input type="number" value={firstFrameDuration} step={0.1} min={0.1} onChange={(e) => setFirstFrameDuration(+e.target.value)} />
+                    </div>
+                    <div className="field">
+                      <label>Delay after (s)</label>
+                      <input type="number" value={firstFrameDelay} step={0.1} min={0} onChange={(e) => setFirstFrameDelay(+e.target.value)} />
+                    </div>
                   </div>
                 )}
               </div>

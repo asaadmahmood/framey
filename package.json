@@ -14,6 +14,7 @@
     "@tailwindcss/vite": "^4.2.4",
     "mp4-muxer": "^5.2.2",
     "react": "^19.2.5",
+    "react-aria-components": "^1.17.0",
     "react-dom": "^19.2.5",
     "tailwindcss": "^4.2.4"
   },
