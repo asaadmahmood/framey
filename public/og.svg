@@ -1,7 +1,0 @@
-<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1200" height="630" fill="#0e0e10"/>
-  <rect x="40" y="40" width="1120" height="550" rx="16" fill="#18181b"/>
-  <text x="600" y="280" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="600" fill="#fafafa">Framey</text>
-  <text x="600" y="340" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="28" fill="#71717a">Create Animated Image Sequences</text>
-  <text x="600" y="420" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="20" fill="#3b82f6">framey.design</text>
-</svg>

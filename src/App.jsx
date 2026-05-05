@@ -2127,16 +2127,30 @@ function App() {
                     <div className="field"><label>Y</label><input type="number" value={selectedImage.y} onChange={(e) => updateImage(selectedImage.id, { y: +e.target.value })} /></div>
                   </div>
                   <div className="field-row">
-                    <div className="field"><label>W</label><input type="number" value={selectedImage.width} onChange={(e) => {
-                      const newW = +e.target.value
-                      const ratio = newW / selectedImage.width
-                      updateImage(selectedImage.id, { width: newW, height: Math.round(selectedImage.height * ratio) })
-                    }} /></div>
-                    <div className="field"><label>H</label><input type="number" value={selectedImage.height} onChange={(e) => {
-                      const newH = +e.target.value
-                      const ratio = newH / selectedImage.height
-                      updateImage(selectedImage.id, { height: newH, width: Math.round(selectedImage.width * ratio) })
-                    }} /></div>
+                    <div className="field"><label>W</label><input type="number" defaultValue={selectedImage.width} key={`w-${selectedImage.id}-${selectedImage.width}`}
+                      onBlur={(e) => {
+                        const newW = +e.target.value
+                        if (newW && newW !== selectedImage.width) {
+                          const aspect = selectedImage.height / selectedImage.width
+                          updateImage(selectedImage.id, { width: newW, height: Math.round(newW * aspect) })
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.target.blur()
+                      }}
+                    /></div>
+                    <div className="field"><label>H</label><input type="number" defaultValue={selectedImage.height} key={`h-${selectedImage.id}-${selectedImage.height}`}
+                      onBlur={(e) => {
+                        const newH = +e.target.value
+                        if (newH && newH !== selectedImage.height) {
+                          const aspect = selectedImage.width / selectedImage.height
+                          updateImage(selectedImage.id, { height: newH, width: Math.round(newH * aspect) })
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.target.blur()
+                      }}
+                    /></div>
                   </div>
                 </div>
               )}
