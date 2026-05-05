@@ -1,8 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Play, Stop, DownloadSimple, Plus, SquaresFour, Stack, Trash, DotsSixVertical, AlignLeft, AlignCenterHorizontal, AlignRight, AlignTop, AlignCenterVertical, AlignBottom, Rows, Columns, CaretDown, Camera } from '@phosphor-icons/react'
+import { Play, Stop, DownloadSimple, Plus, SquaresFour, Stack, Trash, DotsSixVertical, AlignLeft, AlignCenterHorizontal, AlignRight, AlignTop, AlignCenterVertical, AlignBottom, Rows, Columns, CaretDown, Camera, FileVideo, ImageSquare } from '@phosphor-icons/react'
 import * as Mp4Muxer from 'mp4-muxer'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+// GIF encoder loaded lazily on first use
+let GifEncoderModule = null
 import { BgColorPicker } from './ColorPicker'
+import { AlignColorPicker } from './AlignColorPicker'
+import { Slider } from './Slider'
 import './ColorPicker.css'
+import './AlignColorPicker.css'
+import './Slider.css'
 import './App.css'
 
 const FORMAT_PRESETS = {
@@ -24,6 +31,12 @@ const ANIMATION_TYPES = [
   { id: 'slideRight', label: 'Slide Right' },
   { id: 'scaleUp', label: 'Scale Up' },
   { id: 'scaleDown', label: 'Scale Down' },
+]
+
+const FRAME_STYLES = [
+  { id: 'none', label: 'None' },
+  { id: 'border', label: 'Default' },
+  { id: 'glass', label: 'Glass' },
 ]
 
 const EXIT_ANIMATION_TYPES = [
@@ -235,45 +248,29 @@ function EasingDropdown({ value, onChange }) {
   )
 }
 
-const rc = (f) => `/wallpapers/raycast/${f}.jpg`
-const rs = (f) => `/wallpapers/resend/${f}.jpg`
+const rc = (f) => `/wallpapers/raycast/${f}.webp`
+const rs = (f) => `/wallpapers/resend/${f}.webp`
 const WALLPAPER_PRESETS = [
   // Distortion
-  { name: 'Glaze 1', url: rc('glaze_1_preview') },
-  { name: 'Glaze 2', url: rc('glaze_2_preview') },
-  { name: 'Red Distortion 1', url: rc('red_distortion_1_preview') },
-  { name: 'Red Distortion 2', url: rc('red_distortion_2_preview') },
-  { name: 'Red Distortion 3', url: rc('red_distortion_3_preview') },
-  { name: 'Red Distortion 4', url: rc('red_distortion_4_preview') },
-  { name: 'Blue Distortion 1', url: rc('blue_distortion_1_preview') },
-  { name: 'Blue Distortion 2', url: rc('blue_distortion_2_preview') },
-  { name: 'Mono Dark 1', url: rc('mono_dark_distortion_1_preview') },
-  { name: 'Mono Dark 2', url: rc('mono_dark_distortion_2_preview') },
-  { name: 'Mono Light 1', url: rc('mono_light_distortion_1_preview') },
-  { name: 'Mono Light 2', url: rc('mono_light_distortion_2_preview') },
+  { name: 'Glaze 1', url: rc('glaze_1') },
+  { name: 'Glaze 2', url: rc('glaze_2') },
+  { name: 'Red Distortion 1', url: rc('red_distortion_1') },
+  { name: 'Red Distortion 2', url: rc('red_distortion_2') },
+  { name: 'Red Distortion 3', url: rc('red_distortion_3') },
+  { name: 'Red Distortion 4', url: rc('red_distortion_4') },
+  { name: 'Blue Distortion 1', url: rc('blue_distortion_1') },
+  { name: 'Blue Distortion 2', url: rc('blue_distortion_2') },
+  { name: 'Mono Dark', url: rc('mono_dark_distortion_1') },
+  { name: 'Mono Light', url: rc('mono_light_distortion_1') },
   // Chromatic
-  { name: 'Chromatic Dark 1', url: rc('chromatic_dark_1_preview') },
-  { name: 'Chromatic Dark 2', url: rc('chromatic_dark_2_preview') },
-  { name: 'Chromatic Light 1', url: rc('chromatic_light_1_preview') },
-  { name: 'Chromatic Light 2', url: rc('chromatic_light_2_preview') },
+  { name: 'Chromatic Dark', url: rc('chromatic_dark_1') },
+  { name: 'Chromatic Light', url: rc('chromatic_light_1') },
   // 3D
-  { name: 'Cube', url: rc('cube_prod_preview') },
-  { name: 'Cube Mono', url: rc('cube_mono_preview') },
-  { name: 'Loupe', url: rc('loupe-preview') },
-  { name: 'Loupe Dark', url: rc('loupe-mono-dark-preview') },
-  { name: 'Blob', url: rc('blob-preview') },
-  { name: 'Blob Red', url: rc('blob-red-preview') },
-  // Nature
-  { name: 'Autumnal Peach', url: rc('autumnal-peach-preview') },
-  { name: 'Blossom', url: rc('blossom-2-preview') },
-  { name: 'Blushing Fire', url: rc('blushing-fire-preview') },
-  { name: 'Bright Rain', url: rc('bright-rain-preview') },
-  { name: 'Floss', url: rc('floss-preview') },
-  { name: 'Glass Rainbow', url: rc('glass-rainbow-preview') },
-  { name: 'Good Vibes', url: rc('good-vibes-preview') },
-  { name: 'Moonrise', url: rc('moonrise-preview') },
-  { name: 'Ray of Lights', url: rc('ray-of-lights-preview') },
-  { name: 'Rose Thorn', url: rc('rose-thorn-preview') },
+  { name: 'Cube', url: rc('cube_prod') },
+  { name: 'Cube Mono', url: rc('cube_mono') },
+  { name: 'Loupe', url: rc('loupe') },
+  { name: 'Loupe Dark', url: rc('loupe-mono-dark') },
+  { name: 'Blob Red', url: rc('blob-red') },
   // Resend
   ...['1-a','1-b','1-c','2-a','2-b','2-c','3-a','3-b','3-c','4-a','4-b','4-c','5-a','5-b','5-c','6-a','6-b','6-c','7-a','7-b','7-c','8-a','8-b','8-c'].map(id => ({
     name: `Resend ${id}`, url: rs(id),
@@ -404,9 +401,10 @@ function App() {
   const [artboardHeight, setArtboardHeight] = useState(() => loadSession('artboardHeight', 1200))
   const [duration, setDuration] = useState(() => loadSession('duration', 4))
   const [images, setImages] = useState([])
-  const [activeTab, setActiveTab] = useState('design')
+  const [activeTab, setActiveTab] = useState('container')
   const [selectedIds, setSelectedIds] = useState([])
   const [isPlaying, setIsPlaying] = useState(false)
+  const [exportProgress, setExportProgress] = useState(null) // null = not exporting, { format, progress: 0-1, status }
   const [artboardBg, setArtboardBg] = useState(() => loadSession('artboardBg', '#ffffff'))
   const [expandedBgGroups, setExpandedBgGroups] = useState([])
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
@@ -546,13 +544,18 @@ function App() {
         return
       }
 
-      // Cmd+Option+1 / Ctrl+Alt+1 = Design tab, Cmd+Option+2 / Ctrl+Alt+2 = Animate tab
+      // Cmd+Option+1/2/3 = Container/Layers/Animate tab
       if (!isPlaying && (e.metaKey || e.ctrlKey) && e.altKey && (e.key === '1' || e.code === 'Digit1')) {
         e.preventDefault()
-        setActiveTab('design')
+        setActiveTab('container')
         return
       }
       if (!isPlaying && (e.metaKey || e.ctrlKey) && e.altKey && (e.key === '2' || e.code === 'Digit2')) {
+        e.preventDefault()
+        setActiveTab('layers')
+        return
+      }
+      if (!isPlaying && (e.metaKey || e.ctrlKey) && e.altKey && (e.key === '3' || e.code === 'Digit3')) {
         e.preventDefault()
         setActiveTab('animate')
         return
@@ -649,6 +652,10 @@ function App() {
             y: 0,
             width: item.naturalWidth,
             height: item.naturalHeight,
+            borderRadius: 0,
+            borderSize: 0,
+            frameStyle: 'none',
+            borderColor: '#ffffff',
           })),
         ]
         // Apply batch sequence to all images
@@ -1290,7 +1297,60 @@ function App() {
     return bgCanvas
   }
 
+  // Load background to canvas without tainting (for export)
+  const loadBgForExport = async (w, h) => {
+    if (artboardBg.includes('url(')) {
+      const urlMatch = artboardBg.match(/url\(([^)]+)\)/)
+      if (urlMatch) {
+        const bgUrl = urlMatch[1].replace(/['"]/g, '')
+        const bgCanvas = document.createElement('canvas')
+        bgCanvas.width = w
+        bgCanvas.height = h
+        const bgCtx = bgCanvas.getContext('2d')
+        const bgImg = new Image()
+        bgImg.crossOrigin = 'anonymous'
+        await new Promise((resolve) => { bgImg.onload = resolve; bgImg.onerror = resolve; bgImg.src = bgUrl })
+        const s = Math.max(w / bgImg.naturalWidth, h / bgImg.naturalHeight)
+        bgCtx.drawImage(bgImg, (w - bgImg.naturalWidth * s) / 2, (h - bgImg.naturalHeight * s) / 2, bgImg.naturalWidth * s, bgImg.naturalHeight * s)
+        return bgCanvas
+      }
+    } else if (artboardBg.includes('gradient') || artboardBg.includes('radial')) {
+      return await renderBgToCanvas(w, h)
+    }
+    return null
+  }
+
   // Export
+  const drawFrameEffect = (ctx, x, y, w, h, radius, style) => {
+    if (!style || style === 'none') return
+    const r = radius || 0
+    ctx.save()
+    switch (style) {
+      case 'border': {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)'
+        ctx.lineWidth = 4
+        ctx.stroke()
+        break
+      }
+      case 'glass':
+      case 'glass-light':
+      case 'glass-dark': {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+        ctx.clip()
+        ctx.beginPath()
+        ctx.roundRect(x - 2, y - 2, w + 4, h + 4, r)
+        ctx.roundRect(x + 4, y + 4, w - 8, h - 8, r)
+        ctx.fillStyle = 'rgba(255,255,255,0.1)'
+        ctx.fill('evenodd')
+        break
+      }
+    }
+    ctx.restore()
+  }
+
   const renderFrame = (ctx, bgCanvas, loadedImages, t, w, h) => {
     ctx.clearRect(0, 0, w, h)
     if (bgCanvas) {
@@ -1306,7 +1366,36 @@ function App() {
     if (showFirstFrame && t < firstFrameDuration + firstFrameDelay && loadedImages.length > 0) {
       if (t < firstFrameDuration) {
         const first = loadedImages[0]
-        ctx.drawImage(first.el, first.x, first.y, first.width, first.height)
+        const fr = first.borderRadius || 0
+        const fbs = first.borderSize || 0
+        ctx.save()
+        if (fbs) {
+          const ffs = first.frameStyle || 'none'
+          ctx.beginPath()
+          ctx.roundRect(first.x, first.y, first.width, first.height, fr)
+          const fbc = first.borderColor || '#ffffff'
+          if (ffs === 'glass' || ffs === 'glass-light' || ffs === 'glass-dark') {
+            const fbase = fbc.slice(0, 7)
+            const fa = fbc.length > 7 ? parseInt(fbc.slice(7, 9), 16) / 255 : 1
+            ctx.fillStyle = fbase + Math.round(fa * 0.35 * 255).toString(16).padStart(2, '0')
+          } else {
+            ctx.fillStyle = fbc
+          }
+          ctx.fill()
+        }
+        const fix = first.x + fbs, fiy = first.y + fbs
+        const fiw = first.width - fbs * 2, fih = first.height - fbs * 2
+        const fir = Math.max(0, fr - fbs)
+        if (fr || fbs || (first.frameStyle && first.frameStyle !== 'none')) {
+          ctx.beginPath()
+          ctx.roundRect(fix, fiy, fiw, fih, fir)
+          ctx.clip()
+        }
+        ctx.drawImage(first.el, fix, fiy, fiw, fih)
+        ctx.restore()
+        if (first.frameStyle && first.frameStyle !== 'none') {
+          drawFrameEffect(ctx, first.x, first.y, first.width, first.height, fr, first.frameStyle)
+        }
       }
       return
     }
@@ -1360,12 +1449,49 @@ function App() {
       }
 
       if (opacity > 0) {
+        const r = img.borderRadius || 0
+        const bs = img.borderSize || 0
         ctx.save()
         ctx.globalAlpha = opacity
         ctx.translate(img.x + img.width / 2 + tx, img.y + img.height / 2 + ty)
         ctx.scale(sx, sy)
-        ctx.drawImage(img.el, -img.width / 2, -img.height / 2, img.width, img.height)
+        // Draw border background if borderSize > 0
+        if (bs) {
+          const fs = img.frameStyle || 'none'
+          ctx.beginPath()
+          ctx.roundRect(-img.width / 2, -img.height / 2, img.width, img.height, r)
+          const bc = img.borderColor || '#ffffff'
+          if (fs === 'glass' || fs === 'glass-light' || fs === 'glass-dark') {
+            const ibase = bc.slice(0, 7)
+            const ia = bc.length > 7 ? parseInt(bc.slice(7, 9), 16) / 255 : 1
+            ctx.fillStyle = ibase + Math.round(ia * 0.35 * 255).toString(16).padStart(2, '0')
+          } else {
+            ctx.fillStyle = bc
+          }
+          ctx.fill()
+        }
+        // Clip and draw image inset by border size
+        const ix = -img.width / 2 + bs
+        const iy = -img.height / 2 + bs
+        const iw = img.width - bs * 2
+        const ih = img.height - bs * 2
+        const ir = Math.max(0, r - bs)
+        const hasClip = r || bs || (img.frameStyle && img.frameStyle !== 'none')
+        if (hasClip) {
+          ctx.beginPath()
+          ctx.roundRect(ix, iy, iw, ih, ir)
+          ctx.clip()
+        }
+        ctx.drawImage(img.el, ix, iy, iw, ih)
         ctx.restore()
+        if (img.frameStyle && img.frameStyle !== 'none') {
+          ctx.save()
+          ctx.globalAlpha = opacity
+          ctx.translate(img.x + img.width / 2 + tx, img.y + img.height / 2 + ty)
+          ctx.scale(sx, sy)
+          drawFrameEffect(ctx, -img.width / 2, -img.height / 2, img.width, img.height, r, img.frameStyle)
+          ctx.restore()
+        }
       }
     }
   }
@@ -1402,9 +1528,16 @@ function App() {
   }
 
   const exportAnimation = async () => {
+    // H.264 requires even dimensions
+    const w = artboardWidth % 2 === 0 ? artboardWidth : artboardWidth + 1
+    const h = artboardHeight % 2 === 0 ? artboardHeight : artboardHeight + 1
+
+    setExportProgress({ format: 'MP4', progress: 0, status: 'Preparing...' })
+    await new Promise(r => setTimeout(r, 50))
+
     const canvas = document.createElement('canvas')
-    canvas.width = artboardWidth
-    canvas.height = artboardHeight
+    canvas.width = w
+    canvas.height = h
     const ctx = canvas.getContext('2d')
     const fps = 30
     const totalFrames = Math.ceil(duration * fps)
@@ -1420,64 +1553,151 @@ function App() {
       )
     )
 
-    // Pre-render gradient background
     let bgCanvas = null
-    if (artboardBg.includes('gradient') || artboardBg.includes('radial') || artboardBg.includes('url(')) {
-      try { bgCanvas = await renderBgToCanvas(artboardWidth, artboardHeight) } catch (e) { console.warn('Bg render failed, using fallback', e) }
-    }
+    try { bgCanvas = await loadBgForExport(w, h) } catch (e) { console.warn('Bg render failed', e) }
 
-    // Use VideoEncoder + mp4-muxer for MP4 export
-    const muxer = new Mp4Muxer.Muxer({
-      target: new Mp4Muxer.ArrayBufferTarget(),
-      video: {
-        codec: 'avc',
-        width: artboardWidth,
-        height: artboardHeight,
-      },
-      fastStart: 'in-memory',
-    })
-
-    const encoder = new VideoEncoder({
-      output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-      error: (e) => console.error('Encoder error:', e),
-    })
-
-    encoder.configure({
-      codec: 'avc1.640028',
-      width: artboardWidth,
-      height: artboardHeight,
-      bitrate: 5_000_000,
-      framerate: fps,
-    })
-
-    for (let frame = 0; frame <= totalFrames; frame++) {
-      const t = (frame / totalFrames) * duration
-      renderFrame(ctx, bgCanvas, loadedImages, t, artboardWidth, artboardHeight)
-
-      const videoFrame = new VideoFrame(canvas, {
-        timestamp: (frame / fps) * 1_000_000,
-        duration: (1 / fps) * 1_000_000,
+    try {
+      const muxer = new Mp4Muxer.Muxer({
+        target: new Mp4Muxer.ArrayBufferTarget(),
+        video: {
+          codec: 'avc',
+          width: w,
+          height: h,
+        },
+        fastStart: 'in-memory',
       })
-      encoder.encode(videoFrame, { keyFrame: frame % 30 === 0 })
-      videoFrame.close()
+
+      const encoder = new VideoEncoder({
+        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+        error: (e) => console.error('Encoder error:', e),
+      })
+
+      encoder.configure({
+        codec: 'avc1.640028',
+        width: w,
+        height: h,
+        bitrate: 5_000_000,
+        framerate: fps,
+      })
+
+      for (let frame = 0; frame <= totalFrames; frame++) {
+        const t = (frame / totalFrames) * duration
+        renderFrame(ctx, bgCanvas, loadedImages, t, w, h)
+
+        const videoFrame = new VideoFrame(canvas, {
+          timestamp: (frame / fps) * 1_000_000,
+          duration: (1 / fps) * 1_000_000,
+        })
+        encoder.encode(videoFrame, { keyFrame: frame % 30 === 0 })
+        videoFrame.close()
+
+        if (frame % 5 === 0) {
+          setExportProgress({ format: 'MP4', progress: frame / totalFrames, status: `Encoding frame ${frame + 1} of ${totalFrames + 1}...` })
+          await new Promise(r => setTimeout(r, 0))
+        }
+      }
+
+      await encoder.flush()
+      encoder.close()
+      muxer.finalize()
+
+      setExportProgress({ format: 'MP4', progress: 1, status: 'Done!' })
+
+      const buf = muxer.target.buffer
+      const blob = new Blob([buf], { type: 'video/mp4' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'animation.mp4'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('MP4 export failed:', err)
     }
 
-    await encoder.flush()
-    encoder.close()
-    muxer.finalize()
+    setTimeout(() => setExportProgress(null), 1000)
+  }
 
-    const buf = muxer.target.buffer
-    const blob = new Blob([buf], { type: 'video/mp4' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'animation.mp4'
-    a.click()
-    URL.revokeObjectURL(url)
+  const exportGif = async () => {
+    if (!GifEncoderModule) {
+      setExportProgress({ format: 'GIF', progress: 0, status: 'Loading encoder...' })
+      GifEncoderModule = await import('modern-gif')
+    }
+    setExportProgress({ format: 'GIF', progress: 0, status: 'Preparing...' })
+    await new Promise(r => setTimeout(r, 50))
+
+    const gw = artboardWidth
+    const gh = artboardHeight
+
+    const canvas = document.createElement('canvas')
+    canvas.width = artboardWidth
+    canvas.height = artboardHeight
+    const ctx = canvas.getContext('2d')
+
+    const gifCanvas = document.createElement('canvas')
+    gifCanvas.width = gw
+    gifCanvas.height = gh
+    const gifCtx = gifCanvas.getContext('2d', { willReadFrequently: true })
+
+    const fps = 15
+    const totalFrames = Math.ceil(duration * fps)
+
+    const loadedImages = await Promise.all(
+      images.map(
+        (img) =>
+          new Promise((resolve) => {
+            const el = new Image()
+            el.onload = () => resolve({ ...img, el })
+            el.src = img.src
+          })
+      )
+    )
+
+    let bgCanvas = null
+    try { bgCanvas = await loadBgForExport(artboardWidth, artboardHeight) } catch {}
+
+    // Use Encoder with async encode for per-frame progress
+    const encoder = new GifEncoderModule.Encoder({ width: gw, height: gh })
+
+    try {
+      for (let frame = 0; frame <= totalFrames; frame++) {
+        const t = (frame / totalFrames) * duration
+        renderFrame(ctx, bgCanvas, loadedImages, t, artboardWidth, artboardHeight)
+        gifCtx.clearRect(0, 0, gw, gh)
+        gifCtx.drawImage(canvas, 0, 0, gw, gh)
+        const imageData = gifCtx.getImageData(0, 0, gw, gh)
+        await encoder.encode({ data: imageData.data, delay: Math.round(1000 / fps) })
+
+        if (frame % 2 === 0) {
+          setExportProgress({ format: 'GIF', progress: (frame / totalFrames) * 0.8, status: `Encoding frame ${frame + 1} of ${totalFrames + 1}...` })
+          await new Promise(r => setTimeout(r, 0))
+        }
+      }
+
+      setExportProgress({ format: 'GIF', progress: 0.85, status: 'Finalizing...' })
+      await new Promise(r => setTimeout(r, 50))
+
+      const output = await encoder.flush()
+      setExportProgress({ format: 'GIF', progress: 1, status: 'Done!' })
+
+      const blob = new Blob([output], { type: 'image/gif' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'animation.gif'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('GIF export failed:', err)
+    }
+
+    setTimeout(() => setExportProgress(null), 1000)
   }
 
   const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) : null
   const multiSelected = selectedIds.length > 1
+  // Reference image for reading shared properties in multi-select
+  const refImage = selectedImage || (multiSelected ? images.find((img) => img.id === selectedIds[0]) : null)
   const scale = getArtboardScale()
 
   // Layers list used in left sidebar
@@ -1512,14 +1732,20 @@ function App() {
           <span className="logo">Framey</span>
         </div>
         <div className="topbar-center">
-          <button className={`tab-btn ${activeTab === 'design' ? 'active' : ''}`} onClick={() => setActiveTab('design')}>
-            Design
-            <span className="tab-tooltip">Design <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd><kbd>{isMac ? '⌥' : 'Alt'}</kbd><kbd>1</kbd></span>
-          </button>
-          <button className={`tab-btn ${activeTab === 'animate' ? 'active' : ''}`} onClick={() => setActiveTab('animate')}>
-            Animate
-            <span className="tab-tooltip">Animate <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd><kbd>{isMac ? '⌥' : 'Alt'}</kbd><kbd>2</kbd></span>
-          </button>
+          <div className="topbar-center-tabs">
+            <button className={`tab-btn ${activeTab === 'container' ? 'active' : ''}`} onClick={() => setActiveTab('container')}>
+              Container
+              <span className="tab-tooltip">Container <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd><kbd>{isMac ? '⌥' : 'Alt'}</kbd><kbd>1</kbd></span>
+            </button>
+            <button className={`tab-btn ${activeTab === 'layers' ? 'active' : ''}`} onClick={() => setActiveTab('layers')}>
+              Layers
+              <span className="tab-tooltip">Layers <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd><kbd>{isMac ? '⌥' : 'Alt'}</kbd><kbd>2</kbd></span>
+            </button>
+            <button className={`tab-btn ${activeTab === 'animate' ? 'active' : ''}`} onClick={() => setActiveTab('animate')}>
+              Animate
+              <span className="tab-tooltip">Animate <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd><kbd>{isMac ? '⌥' : 'Alt'}</kbd><kbd>3</kbd></span>
+            </button>
+          </div>
         </div>
         <div className="topbar-actions">
           {isPlaying ? (
@@ -1528,7 +1754,24 @@ function App() {
             <button className="btn-play" onClick={playAnimation}><Play size={14} weight="fill" /> Play</button>
           )}
           <button className="btn-icon" onClick={captureFrame} title="Capture current frame"><Camera size={16} /></button>
-          <button className="btn-export" onClick={exportAnimation}><DownloadSimple size={14} weight="bold" /> Export</button>
+          <div className="btn-export-split">
+            <button className="btn-export" onClick={exportAnimation}><DownloadSimple size={14} weight="bold" /> Export</button>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button className="btn-export-caret" aria-label="Export options"><CaretDown size={12} weight="bold" /></button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className="export-dropdown" sideOffset={6} align="end">
+                  <DropdownMenu.Item className="export-dropdown-item" onSelect={exportAnimation}>
+                    <FileVideo size={16} /> Export as MP4
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item className="export-dropdown-item" onSelect={exportGif}>
+                    <ImageSquare size={16} /> Export as GIF
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          </div>
         </div>
       </div>
 
@@ -1596,7 +1839,12 @@ function App() {
                   height: artboardHeight,
                   transform: `scale(${scale})`,
                   transformOrigin: 'top left',
-                  background: artboardBg,
+                  ...(artboardBg.includes('url(') ? {
+                    backgroundImage: artboardBg.replace(/\)\s*center\/cover/, ')'),
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat',
+                  } : { background: artboardBg }),
                 }}
               >
               {images.map((img) => {
@@ -1605,7 +1853,7 @@ function App() {
                 return (
                   <div
                     key={img.id}
-                    className={`artboard-image ${isSelected ? 'selected' : ''}`}
+                    className={`artboard-image ${isSelected ? 'selected' : ''}${img.frameStyle && img.frameStyle !== 'none' ? ` frame-${img.frameStyle}` : ''}`}
                     style={{
                       left: img.x,
                       top: img.y,
@@ -1614,10 +1862,36 @@ function App() {
                       opacity: animStyle.opacity,
                       transform: animStyle.transform,
                       cursor: isPlaying ? 'default' : 'move',
+                      borderRadius: img.borderRadius ? `${img.borderRadius}px` : undefined,
+                      overflow: (img.borderRadius || img.borderSize || (img.frameStyle && img.frameStyle !== 'none')) ? 'hidden' : undefined,
+                      background: img.borderSize > 0 ? (() => {
+                        const bc = img.borderColor || '#ffffff'
+                        if (img.frameStyle === 'glass' || img.frameStyle === 'glass-light' || img.frameStyle === 'glass-dark') {
+                          const base = bc.slice(0, 7)
+                          const existingAlpha = bc.length > 7 ? parseInt(bc.slice(7, 9), 16) / 255 : 1
+                          const a = Math.round(existingAlpha * 0.35 * 255).toString(16).padStart(2, '0')
+                          return base + a
+                        }
+                        return bc
+                      })() : undefined,
                     }}
                     onMouseDown={isPlaying ? undefined : (e) => handleArtboardMouseDown(e, img.id)}
                   >
-                    <img src={img.src} alt={img.name} draggable={false} />
+                    {img.borderSize > 0 ? (
+                      <div className="border-inset" style={{
+                        position: 'absolute',
+                        inset: `${img.borderSize}px`,
+                        borderRadius: img.borderRadius ? `${Math.max(0, img.borderRadius - img.borderSize)}px` : undefined,
+                        overflow: 'hidden',
+                      }}>
+                        <img src={img.src} alt={img.name} draggable={false} />
+                      </div>
+                    ) : (
+                      <img src={img.src} alt={img.name} draggable={false} />
+                    )}
+                    {img.frameStyle && img.frameStyle !== 'none' && (
+                      <div className="frame-overlay" />
+                    )}
                     {isSelected && !isPlaying && (
                       <>
                         <div className="resize-handle nw" onMouseDown={(e) => handleArtboardMouseDown(e, img.id, 'nw')} />
@@ -1699,7 +1973,7 @@ function App() {
 
         {/* Right Panel - Properties */}
         <div className="panel">
-          {activeTab === 'design' ? (
+          {activeTab === 'container' ? (
             <>
               <div className="panel-section">
                 <h3>Layout</h3>
@@ -1815,7 +2089,9 @@ function App() {
                   </div>
                 </div>
               </div>
-
+            </>
+          ) : activeTab === 'layers' ? (
+            <>
               {(selectedImage || multiSelected) && (
                 <div className="panel-section">
                   <h3>Alignment</h3>
@@ -1865,6 +2141,93 @@ function App() {
                 </div>
               )}
 
+              {selectedIds.length > 0 && (
+                <div className="panel-section">
+                  <h3>Style</h3>
+                  <div className="frame-style-grid">
+                    {FRAME_STYLES.map((fs) => {
+                      const current = refImage ? (refImage.frameStyle || 'none') : 'none'
+                      return (
+                        <button
+                          key={fs.id}
+                          className={`frame-style-btn ${current === fs.id ? 'active' : ''}`}
+                          onClick={() => {
+                            if (fs.id === 'none') {
+                              updateSelectedImages({ frameStyle: fs.id, borderSize: 0 })
+                            } else if (fs.id === 'glass') {
+                              updateSelectedImages({ frameStyle: fs.id, borderSize: 15, borderColor: '#ffffff59' })
+                            } else {
+                              updateSelectedImages({ frameStyle: fs.id, borderSize: 15, borderColor: '#ffffff' })
+                            }
+                          }}
+                          title={fs.label}
+                        >
+                          <div className={`frame-style-preview fs-${fs.id}`}>
+                            <div className="fs-inner" />
+                          </div>
+                          <span>{fs.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {refImage && refImage.frameStyle && refImage.frameStyle !== 'none' && (
+                    <div className="border-color-picker">
+                      <label>Color</label>
+                      <AlignColorPicker
+                        value={refImage.borderColor || '#ffffff'}
+                        onChange={(hex) => updateSelectedImages({ borderColor: hex })}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedIds.length > 0 && (
+                <div className="panel-section">
+                  <h3>Border</h3>
+                  <div className="slider-field">
+                    <label>Radius</label>
+                    <div className="slider-field-row">
+                      <Slider
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={refImage ? (refImage.borderRadius || 0) : 0}
+                        onValueChange={(v) => updateSelectedImages({ borderRadius: v })}
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={refImage ? (refImage.borderRadius || 0) : 0}
+                        onChange={(e) => updateSelectedImages({ borderRadius: Math.max(0, +e.target.value) })}
+                        className="border-radius-number"
+                      />
+                    </div>
+                  </div>
+                  <div className="slider-field">
+                    <label>Size</label>
+                    <div className="slider-field-row">
+                      <Slider
+                        min={0}
+                        max={40}
+                        step={1}
+                        value={refImage ? (refImage.borderSize || 0) : 0}
+                        onValueChange={(v) => updateSelectedImages({ borderSize: v })}
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        max="40"
+                        value={refImage ? (refImage.borderSize || 0) : 0}
+                        onChange={(e) => updateSelectedImages({ borderSize: Math.max(0, +e.target.value) })}
+                        className="border-radius-number"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {multiSelected && (
                 <div className="panel-section">
                   <h3>Resize All ({selectedIds.length})</h3>
@@ -1893,6 +2256,12 @@ function App() {
                       />
                     </div>
                   </div>
+                </div>
+              )}
+
+              {!selectedImage && !multiSelected && (
+                <div className="panel-section">
+                  <p className="hint">Select a layer to edit its properties</p>
                 </div>
               )}
             </>
@@ -2067,6 +2436,22 @@ function App() {
           )}
         </div>
       </div>
+
+      {exportProgress && (
+        <div className="export-overlay">
+          <div className="export-modal">
+            <div className="export-modal-icon">
+              {exportProgress.format === 'GIF' ? <ImageSquare size={32} /> : <FileVideo size={32} />}
+            </div>
+            <h2>Exporting {exportProgress.format}</h2>
+            <p className="export-modal-status">{exportProgress.status}</p>
+            <div className="export-progress-track">
+              <div className="export-progress-fill" style={{ width: `${Math.round(exportProgress.progress * 100)}%` }} />
+            </div>
+            <span className="export-progress-pct">{Math.round(exportProgress.progress * 100)}%</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
