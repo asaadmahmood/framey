@@ -395,6 +395,51 @@ function loadSession(key, fallback) {
   } catch { return fallback }
 }
 
+function VideoFrameView({ videoSrc, videoTime }) {
+  const canvasRef = useRef(null)
+  const videoRef = useRef(null)
+  const lastTimeRef = useRef(-1)
+
+  useEffect(() => {
+    if (!videoSrc) return
+    const video = document.createElement('video')
+    video.muted = true
+    video.preload = 'auto'
+    video.playsInline = true
+    video.src = videoSrc
+    videoRef.current = video
+    return () => { video.pause(); video.src = '' }
+  }, [videoSrc])
+
+  useEffect(() => {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas) return
+    const t = Math.max(0, videoTime)
+    if (Math.abs(t - lastTimeRef.current) < 0.03) return
+    lastTimeRef.current = t
+
+    const draw = () => {
+      const ctx = canvas.getContext('2d')
+      canvas.width = video.videoWidth || canvas.clientWidth
+      canvas.height = video.videoHeight || canvas.clientHeight
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    }
+
+    if (video.readyState >= 2) {
+      video.currentTime = t
+      video.onseeked = draw
+    } else {
+      video.onloadeddata = () => {
+        video.currentTime = t
+        video.onseeked = draw
+      }
+    }
+  }, [videoTime])
+
+  return <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+}
+
 function App() {
   const [format, setFormat] = useState(() => loadSession('format', 'Dribbble shot HD'))
   const [artboardWidth, setArtboardWidth] = useState(() => loadSession('artboardWidth', 1600))
@@ -436,6 +481,7 @@ function App() {
   const canvasAreaRef = useRef(null)
   const fileInputRef = useRef(null)
   const animationFrameRef = useRef(null)
+  const playAnimationRef = useRef(null)
   const imagesLoadedFromDB = useRef(false)
 
   // Load images from IndexedDB on mount
@@ -487,10 +533,12 @@ function App() {
 
   const undo = useCallback(() => {
     if (undoStack.current.length === 0) return
+    const entry = undoStack.current.pop()
+    if (!entry || entry === 'undefined') return
     setImages((prev) => {
       redoStack.current.push(JSON.stringify(prev))
       isUndoRedoing.current = true
-      const restored = JSON.parse(undoStack.current.pop())
+      const restored = JSON.parse(entry)
       setTimeout(() => { isUndoRedoing.current = false }, 0)
       return restored
     })
@@ -498,10 +546,12 @@ function App() {
 
   const redo = useCallback(() => {
     if (redoStack.current.length === 0) return
+    const entry = redoStack.current.pop()
+    if (!entry || entry === 'undefined') return
     setImages((prev) => {
       undoStack.current.push(JSON.stringify(prev))
       isUndoRedoing.current = true
-      const restored = JSON.parse(redoStack.current.pop())
+      const restored = JSON.parse(entry)
       setTimeout(() => { isUndoRedoing.current = false }, 0)
       return restored
     })
@@ -588,10 +638,14 @@ function App() {
     }
     const handleKeyUp = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return
-      // Space quick tap = play/pause (< 200ms held)
+      // Space quick tap = pause/resume, Shift+Space = restart from start
       if (e.code === 'Space' && Date.now() - spaceDownTime.current < 200) {
-        if (isPlaying) stopAnimation()
-        else playAnimation()
+        if (isPlaying) {
+          setIsPlaying(false)
+          if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+        } else {
+          playAnimationRef.current(e.shiftKey || playbackTime >= duration)
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -617,27 +671,62 @@ function App() {
 
   const addImageFiles = useCallback((files) => {
     const sorted = Array.from(files)
-      .filter((f) => f.type.startsWith('image/'))
+      .filter((f) => f.type.startsWith('image/') || f.type === 'video/mp4')
       .sort((a, b) => naturalSort(a.name, b.name))
 
     Promise.all(
       sorted.map(
         (file) =>
           new Promise((resolve) => {
-            const reader = new FileReader()
-            reader.onload = (ev) => {
-              const img = new Image()
-              img.onload = () => {
-                resolve({
-                  src: ev.target.result,
-                  name: file.name,
-                  naturalWidth: img.naturalWidth,
-                  naturalHeight: img.naturalHeight,
-                })
+            if (file.type === 'video/mp4') {
+              const videoUrl = URL.createObjectURL(file)
+              const video = document.createElement('video')
+              video.muted = true
+              video.preload = 'metadata'
+              let detectedDuration = 0
+              video.onloadedmetadata = () => {
+                detectedDuration = (video.duration && isFinite(video.duration)) ? video.duration : 0
+                video.currentTime = 0.01
               }
-              img.src = ev.target.result
+              video.onseeked = () => {
+                const canvas = document.createElement('canvas')
+                canvas.width = video.videoWidth
+                canvas.height = video.videoHeight
+                const ctx = canvas.getContext('2d')
+                ctx.drawImage(video, 0, 0)
+                const poster = canvas.toDataURL('image/png')
+                const reader = new FileReader()
+                reader.onload = (ev) => {
+                  resolve({
+                    src: poster,
+                    videoSrc: ev.target.result,
+                    name: file.name,
+                    naturalWidth: video.videoWidth,
+                    naturalHeight: video.videoHeight,
+                    isVideo: true,
+                    videoDuration: Math.round(detectedDuration * 10) / 10,
+                  })
+                  URL.revokeObjectURL(videoUrl)
+                }
+                reader.readAsDataURL(file)
+              }
+              video.src = videoUrl
+            } else {
+              const reader = new FileReader()
+              reader.onload = (ev) => {
+                const img = new Image()
+                img.onload = () => {
+                  resolve({
+                    src: ev.target.result,
+                    name: file.name,
+                    naturalWidth: img.naturalWidth,
+                    naturalHeight: img.naturalHeight,
+                  })
+                }
+                img.src = ev.target.result
+              }
+              reader.readAsDataURL(file)
             }
-            reader.readAsDataURL(file)
           })
       )
     ).then((loaded) => {
@@ -647,6 +736,9 @@ function App() {
           ...loaded.map((item, i) => ({
             id: Date.now() + Math.random() + i,
             src: item.src,
+            videoSrc: item.videoSrc || null,
+            isVideo: item.isVideo || false,
+            videoDuration: item.videoDuration || 0,
             name: item.name,
             x: 0,
             y: 0,
@@ -658,22 +750,29 @@ function App() {
             borderColor: '#ffffff',
           })),
         ]
-        // Apply batch sequence to all images
-        let cycle = batchAnimDuration + batchDelay
-        if (batchExitAnimation) cycle += batchExitDuration
-        const step = Math.max(0.05, cycle - batchOverlap)
-        return all.map((img, i) => ({
-          ...img,
-          animation: img.animation || batchAnimation,
-          easing: img.easing || batchEasing,
-          animDuration: img.animDuration || batchAnimDuration,
-          delay: +(i * step).toFixed(2),
-          exitAnimation: batchExitAnimation,
-          exitType: img.exitType || batchExitType,
-          exitEasing: img.exitEasing || batchExitEasing,
-          exitDuration: img.exitDuration || batchExitDuration,
-          exitDelay: img.exitDelay || batchDelay,
-        }))
+        // Apply batch sequence — use running cursor to account for varying durations
+        let cursor = 0
+        return all.map((img, i) => {
+          const hold = img.exitDelay || (img.isVideo && img.videoDuration ? Math.round(img.videoDuration * 10) / 10 : batchDelay)
+          const hasEntry = img.entryAnimation !== false
+          const entryDur = hasEntry ? (img.animDuration || batchAnimDuration) : 0
+          const exitDur = batchExitAnimation ? (img.exitDuration || batchExitDuration) : 0
+          const delay = +cursor.toFixed(2)
+          const cycle = entryDur + hold + exitDur
+          cursor += Math.max(0.05, cycle - batchOverlap)
+          return {
+            ...img,
+            animation: img.animation || batchAnimation,
+            easing: img.easing || batchEasing,
+            animDuration: entryDur,
+            delay,
+            exitAnimation: batchExitAnimation,
+            exitType: img.exitType || batchExitType,
+            exitEasing: img.exitEasing || batchExitEasing,
+            exitDuration: img.exitDuration || batchExitDuration,
+            exitDelay: hold,
+          }
+        })
       })
     })
   }, [setImagesWithUndo, batchAnimation, batchEasing, batchAnimDuration, batchDelay, batchOverlap, batchExitAnimation, batchExitType, batchExitEasing, batchExitDuration])
@@ -719,30 +818,40 @@ function App() {
 
   const applyBatchSequence = () => {
     if (images.length === 0) return
-    // Full cycle: entry + hold + exit (if enabled)
-    let cycle = batchAnimDuration + batchDelay
-    if (batchExitAnimation) cycle += batchExitDuration
-    const step = Math.max(0.05, cycle - batchOverlap)
-    setImagesWithUndo((prev) =>
-      prev.map((img, i) => ({
-        ...img,
-        animation: batchAnimation,
-        easing: batchEasing,
-        animDuration: batchAnimDuration,
-        delay: +(i * step).toFixed(2),
-        exitAnimation: batchExitAnimation,
-        exitType: batchExitType,
-        exitEasing: batchExitEasing,
-        exitDuration: batchExitDuration,
-        exitDelay: batchDelay,
-      }))
-    )
+    setImagesWithUndo((prev) => {
+      let cursor = 0
+      return prev.map((img, i) => {
+        const hold = img.isVideo && img.exitDelay ? img.exitDelay : batchDelay
+        const hasEntry = img.entryAnimation !== false
+        const entryDur = hasEntry ? batchAnimDuration : 0
+        const delay = +cursor.toFixed(2)
+        const cycle = entryDur + hold + (batchExitAnimation ? batchExitDuration : 0)
+        cursor += Math.max(0.05, cycle - batchOverlap)
+        return {
+          ...img,
+          animation: batchAnimation,
+          easing: batchEasing,
+          animDuration: batchAnimDuration,
+          delay,
+          exitAnimation: batchExitAnimation,
+          exitType: batchExitType,
+          exitEasing: batchExitEasing,
+          exitDuration: batchExitDuration,
+          exitDelay: hold,
+        }
+      })
+    })
     // Auto-fit duration
     const offset = showFirstFrame ? firstFrameDuration + firstFrameDelay : 0
-    const lastStart = (images.length - 1) * step
-    let needed = lastStart + batchAnimDuration + offset
-    if (batchExitAnimation) needed += batchDelay + batchExitDuration
-    setDuration(+(needed + 0.2).toFixed(1))
+    let cursor = 0
+    for (const img of images) {
+      const hold = img.isVideo && img.exitDelay ? img.exitDelay : batchDelay
+      const hasEntry = img.entryAnimation !== false
+      const entryDur = hasEntry ? batchAnimDuration : 0
+      const cycle = entryDur + hold + (batchExitAnimation ? batchExitDuration : 0)
+      cursor += Math.max(0.05, cycle - batchOverlap)
+    }
+    setDuration(+(cursor + offset + 0.2).toFixed(1))
   }
 
   const getContentDuration = () => {
@@ -1145,24 +1254,31 @@ function App() {
   }
 
   // Playback
-  const playAnimation = useCallback(() => {
+  const playAnimation = useCallback((fromStart = false) => {
     setIsPlaying(true)
-    setPlaybackTime(0)
+    const startFrom = fromStart ? 0 : playbackTime
+    if (fromStart) setPlaybackTime(0)
     const startTime = performance.now()
     const dur = duration
-    const totalMs = dur * 1000
+    const remainingMs = (dur - startFrom) * 1000
     const tick = (now) => {
       const elapsed = now - startTime
-      const t = Math.min(elapsed / totalMs, 1)
-      setPlaybackTime(t * dur)
-      if (t < 1) {
+      const t = Math.min(startFrom + (elapsed / 1000), dur)
+      setPlaybackTime(t)
+      if (t < dur) {
         animationFrameRef.current = requestAnimationFrame(tick)
       } else {
         setIsPlaying(false)
       }
     }
     animationFrameRef.current = requestAnimationFrame(tick)
-  }, [duration])
+  }, [duration, playbackTime])
+  playAnimationRef.current = playAnimation
+
+  const pauseAnimation = useCallback(() => {
+    setIsPlaying(false)
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+  }, [])
 
   const stopAnimation = useCallback(() => {
     setIsPlaying(false)
@@ -1244,12 +1360,13 @@ function App() {
     }
 
     const offset = showFirstFrame ? firstFrameDuration + firstFrameDelay : 0
+    const hasEntry = img.entryAnimation !== false
     const enterStart = img.delay + offset
-    const enterEnd = enterStart + img.animDuration
+    const enterEnd = hasEntry ? enterStart + img.animDuration : enterStart
 
     // Enter phase
-    if (t < enterStart) return getInitialStyle(img.animation)
-    if (t < enterEnd) {
+    if (t < enterStart) return hasEntry ? getInitialStyle(img.animation) : { opacity: 0, transform: 'none' }
+    if (hasEntry && t < enterEnd) {
       const linearProgress = (t - enterStart) / img.animDuration
       const progress = applyEasingOut(linearProgress, img.easing || 'ease-out')
       return getInterpolatedStyle(img.animation, progress)
@@ -1298,6 +1415,48 @@ function App() {
   }
 
   // Load background to canvas without tainting (for export)
+  // Load layers for export — images as Image, videos as Video elements
+  const loadLayersForExport = async () => {
+    return Promise.all(
+      images.map((img) => new Promise((resolve) => {
+        if (img.isVideo && img.videoSrc) {
+          const video = document.createElement('video')
+          video.muted = true
+          video.preload = 'auto'
+          video.playsInline = true
+          video.onloadeddata = () => resolve({ ...img, el: video, isVideoEl: true })
+          video.onerror = () => {
+            // Fallback to poster
+            const el = new Image()
+            el.onload = () => resolve({ ...img, el })
+            el.src = img.src
+          }
+          video.src = img.videoSrc
+        } else {
+          const el = new Image()
+          el.onload = () => resolve({ ...img, el })
+          el.src = img.src
+        }
+      }))
+    )
+  }
+
+  // Seek all video layers to the correct time for a given playback time
+  const seekVideosForFrame = async (loadedImages, t) => {
+    const offset = showFirstFrame ? firstFrameDuration + firstFrameDelay : 0
+    const promises = loadedImages.filter(img => img.isVideoEl).map(img => {
+      const hasEntry = img.entryAnimation !== false
+      const entryEnd = img.delay + offset + (hasEntry ? img.animDuration : 0)
+      const videoT = Math.max(0, t - entryEnd)
+      return new Promise((resolve) => {
+        if (Math.abs(img.el.currentTime - videoT) < 0.05) { resolve(); return }
+        img.el.onseeked = () => resolve()
+        img.el.currentTime = videoT
+      })
+    })
+    await Promise.all(promises)
+  }
+
   const loadBgForExport = async (w, h) => {
     if (artboardBg.includes('url(')) {
       const urlMatch = artboardBg.match(/url\(([^)]+)\)/)
@@ -1314,8 +1473,28 @@ function App() {
         bgCtx.drawImage(bgImg, (w - bgImg.naturalWidth * s) / 2, (h - bgImg.naturalHeight * s) / 2, bgImg.naturalWidth * s, bgImg.naturalHeight * s)
         return bgCanvas
       }
-    } else if (artboardBg.includes('gradient') || artboardBg.includes('radial')) {
-      return await renderBgToCanvas(w, h)
+    } else if (artboardBg.includes('gradient')) {
+      // Parse CSS linear-gradient and render natively to avoid canvas taint
+      const bgCanvas = document.createElement('canvas')
+      bgCanvas.width = w
+      bgCanvas.height = h
+      const bgCtx = bgCanvas.getContext('2d')
+      const angleMatch = artboardBg.match(/(\d+)deg/)
+      const angle = angleMatch ? +angleMatch[1] : 135
+      const colors = artboardBg.match(/#[0-9a-fA-F]{3,8}/g) || ['#000000', '#000000']
+      // Convert angle to gradient line coordinates
+      const rad = (angle - 90) * Math.PI / 180
+      const cx = w / 2, cy = h / 2
+      const len = Math.abs(w * Math.sin(rad)) + Math.abs(h * Math.cos(rad))
+      const x1 = cx - Math.cos(rad) * len / 2
+      const y1 = cy - Math.sin(rad) * len / 2
+      const x2 = cx + Math.cos(rad) * len / 2
+      const y2 = cy + Math.sin(rad) * len / 2
+      const grad = bgCtx.createLinearGradient(x1, y1, x2, y2)
+      colors.forEach((c, i) => grad.addColorStop(i / (colors.length - 1), c))
+      bgCtx.fillStyle = grad
+      bgCtx.fillRect(0, 0, w, h)
+      return bgCanvas
     }
     return null
   }
@@ -1401,8 +1580,9 @@ function App() {
     }
 
     for (const img of loadedImages) {
+      const hasEntry = img.entryAnimation !== false
       const enterStart = img.delay + offset
-      const enterEnd = enterStart + img.animDuration
+      const enterEnd = hasEntry ? enterStart + img.animDuration : enterStart
       let opacity = 1
       let tx = 0, ty = 0, sx = 1, sy = 1
 
@@ -1432,7 +1612,7 @@ function App() {
 
       if (t < enterStart) {
         opacity = 0
-      } else if (t < enterEnd) {
+      } else if (hasEntry && t < enterEnd) {
         const lp = (t - enterStart) / img.animDuration
         applyAnim(img.animation, applyEasingOut(lp, img.easing || 'ease-out'), false)
       } else if (img.exitAnimation) {
@@ -1503,17 +1683,10 @@ function App() {
     const ctx = canvas.getContext('2d')
 
     let bgCanvas = null
-    if (artboardBg.includes('gradient') || artboardBg.includes('radial') || artboardBg.includes('url(')) {
-      try { bgCanvas = await renderBgToCanvas(artboardWidth, artboardHeight) } catch {}
-    }
+    try { bgCanvas = await loadBgForExport(artboardWidth, artboardHeight) } catch {}
 
-    const loadedImages = await Promise.all(
-      images.map((img) => new Promise((resolve) => {
-        const el = new Image()
-        el.onload = () => resolve({ ...img, el })
-        el.src = img.src
-      }))
-    )
+    const loadedImages = await loadLayersForExport()
+    await seekVideosForFrame(loadedImages, playbackTime)
 
     renderFrame(ctx, bgCanvas, loadedImages, playbackTime, artboardWidth, artboardHeight)
 
@@ -1527,31 +1700,22 @@ function App() {
     }, 'image/png')
   }
 
-  const exportAnimation = async () => {
+  const exportAnimation = async (exportFps = 30) => {
     // H.264 requires even dimensions
     const w = artboardWidth % 2 === 0 ? artboardWidth : artboardWidth + 1
     const h = artboardHeight % 2 === 0 ? artboardHeight : artboardHeight + 1
 
-    setExportProgress({ format: 'MP4', progress: 0, status: 'Preparing...' })
+    setExportProgress({ format: `MP4 ${exportFps}fps`, progress: 0, status: 'Preparing...' })
     await new Promise(r => setTimeout(r, 50))
 
     const canvas = document.createElement('canvas')
     canvas.width = w
     canvas.height = h
     const ctx = canvas.getContext('2d')
-    const fps = 30
+    const fps = exportFps
     const totalFrames = Math.ceil(duration * fps)
 
-    const loadedImages = await Promise.all(
-      images.map(
-        (img) =>
-          new Promise((resolve) => {
-            const el = new Image()
-            el.onload = () => resolve({ ...img, el })
-            el.src = img.src
-          })
-      )
-    )
+    const loadedImages = await loadLayersForExport()
 
     let bgCanvas = null
     try { bgCanvas = await loadBgForExport(w, h) } catch (e) { console.warn('Bg render failed', e) }
@@ -1582,6 +1746,7 @@ function App() {
 
       for (let frame = 0; frame <= totalFrames; frame++) {
         const t = (frame / totalFrames) * duration
+        await seekVideosForFrame(loadedImages, t)
         renderFrame(ctx, bgCanvas, loadedImages, t, w, h)
 
         const videoFrame = new VideoFrame(canvas, {
@@ -1642,16 +1807,7 @@ function App() {
     const fps = 15
     const totalFrames = Math.ceil(duration * fps)
 
-    const loadedImages = await Promise.all(
-      images.map(
-        (img) =>
-          new Promise((resolve) => {
-            const el = new Image()
-            el.onload = () => resolve({ ...img, el })
-            el.src = img.src
-          })
-      )
-    )
+    const loadedImages = await loadLayersForExport()
 
     let bgCanvas = null
     try { bgCanvas = await loadBgForExport(artboardWidth, artboardHeight) } catch {}
@@ -1662,6 +1818,7 @@ function App() {
     try {
       for (let frame = 0; frame <= totalFrames; frame++) {
         const t = (frame / totalFrames) * duration
+        await seekVideosForFrame(loadedImages, t)
         renderFrame(ctx, bgCanvas, loadedImages, t, artboardWidth, artboardHeight)
         gifCtx.clearRect(0, 0, gw, gh)
         gifCtx.drawImage(canvas, 0, 0, gw, gh)
@@ -1749,21 +1906,24 @@ function App() {
         </div>
         <div className="topbar-actions">
           {isPlaying ? (
-            <button className="btn-stop" onClick={stopAnimation}><Stop size={14} weight="fill" /> Stop</button>
+            <button className="btn-stop" onClick={pauseAnimation}><Stop size={14} weight="fill" /> Pause</button>
           ) : (
-            <button className="btn-play" onClick={playAnimation}><Play size={14} weight="fill" /> Play</button>
+            <button className="btn-play" onClick={() => playAnimation(playbackTime === 0 || playbackTime >= duration)}><Play size={14} weight="fill" /> Play</button>
           )}
           <button className="btn-icon" onClick={captureFrame} title="Capture current frame"><Camera size={16} /></button>
           <div className="btn-export-split">
-            <button className="btn-export" onClick={exportAnimation}><DownloadSimple size={14} weight="bold" /> Export</button>
+            <button className="btn-export" onClick={() => exportAnimation(30)}><DownloadSimple size={14} weight="bold" /> Export</button>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <button className="btn-export-caret" aria-label="Export options"><CaretDown size={12} weight="bold" /></button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content className="export-dropdown" sideOffset={6} align="end">
-                  <DropdownMenu.Item className="export-dropdown-item" onSelect={exportAnimation}>
-                    <FileVideo size={16} /> Export as MP4
+                  <DropdownMenu.Item className="export-dropdown-item" onSelect={() => exportAnimation(30)}>
+                    <FileVideo size={16} /> Export as MP4 (30fps)
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item className="export-dropdown-item" onSelect={() => exportAnimation(60)}>
+                    <FileVideo size={16} /> Export as MP4 (60fps)
                   </DropdownMenu.Item>
                   <DropdownMenu.Item className="export-dropdown-item" onSelect={exportGif}>
                     <ImageSquare size={16} /> Export as GIF
@@ -1785,11 +1945,11 @@ function App() {
                 <button className="btn-add-small" onClick={() => setSelectedIds(images.map((img) => img.id))} title="Select all"><SquaresFour size={16} /></button>
                 <button className="btn-add-small" onClick={() => fileInputRef.current?.click()} title="Add images"><Plus size={16} weight="bold" /></button>
               </div>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={handleImageUpload} />
+              <input ref={fileInputRef} type="file" accept="image/*,video/mp4" multiple hidden onChange={handleImageUpload} />
             </div>
             {renderLayersList()}
             {images.length === 0 && (
-              <p className="hint">Drop images here<br/>or click + to add</p>
+              <p className="hint">Drop images or videos (mp4) here<br/>or click + to add</p>
             )}
             {selectedIds.length > 0 && (
               <div className="selection-info">{selectedIds.length} selected</div>
@@ -1813,7 +1973,7 @@ function App() {
         >
           {canvasDragOver && (
             <div className="drop-overlay">
-              <div className="drop-message">Drop images here</div>
+              <div className="drop-message">Drop images and videos (mp4) here</div>
             </div>
           )}
           <div className="zoom-indicator">{Math.round(scale * 100)}%</div>
@@ -1877,18 +2037,30 @@ function App() {
                     }}
                     onMouseDown={isPlaying ? undefined : (e) => handleArtboardMouseDown(e, img.id)}
                   >
-                    {img.borderSize > 0 ? (
-                      <div className="border-inset" style={{
-                        position: 'absolute',
-                        inset: `${img.borderSize}px`,
-                        borderRadius: img.borderRadius ? `${Math.max(0, img.borderRadius - img.borderSize)}px` : undefined,
-                        overflow: 'hidden',
-                      }}>
+                    {(() => {
+                      const showVideo = img.isVideo && animStyle.opacity > 0 && playbackTime > 0
+                      const videoTime = showVideo ? (() => {
+                        const off = showFirstFrame ? firstFrameDuration + firstFrameDelay : 0
+                        const hasEntry = img.entryAnimation !== false
+                        const layerVisibleAt = img.delay + off + (hasEntry ? img.animDuration : 0)
+                        return Math.max(0, playbackTime - layerVisibleAt)
+                      })() : 0
+                      const mediaEl = showVideo ? (
+                        <VideoFrameView videoSrc={img.videoSrc} videoTime={videoTime} />
+                      ) : (
                         <img src={img.src} alt={img.name} draggable={false} />
-                      </div>
-                    ) : (
-                      <img src={img.src} alt={img.name} draggable={false} />
-                    )}
+                      )
+                      return img.borderSize > 0 ? (
+                        <div className="border-inset" style={{
+                          position: 'absolute',
+                          inset: `${img.borderSize}px`,
+                          borderRadius: img.borderRadius ? `${Math.max(0, img.borderRadius - img.borderSize)}px` : undefined,
+                          overflow: 'hidden',
+                        }}>
+                          {mediaEl}
+                        </div>
+                      ) : mediaEl
+                    })()}
                     {img.frameStyle && img.frameStyle !== 'none' && (
                       <div className="frame-overlay" />
                     )}
@@ -1944,22 +2116,44 @@ function App() {
                   >
                     <div className="track-label">{img.name.substring(0, 20)}</div>
                     <div className="track-bar-container">
-                      <div
-                        className="track-bar"
-                        style={{
-                          left: `${(img.delay / duration) * 100}%`,
-                          width: `${(img.animDuration / duration) * 100}%`,
-                        }}
-                      />
-                      {img.exitAnimation && (
-                        <div
-                          className="track-bar exit"
-                          style={{
-                            left: `${((img.delay + img.animDuration + (img.exitDelay || 0)) / duration) * 100}%`,
-                            width: `${((img.exitDuration || img.animDuration) / duration) * 100}%`,
-                          }}
-                        />
-                      )}
+                      {(() => {
+                        const off = showFirstFrame ? firstFrameDuration + firstFrameDelay : 0
+                        const hasEntry = img.entryAnimation !== false
+                        const start = img.delay + off
+                        const entryEnd = hasEntry ? start + img.animDuration : start
+                        const holdTime = img.exitDelay || 0
+                        const exitStart = entryEnd + holdTime
+                        const exitDur = img.exitDuration || img.animDuration
+                        return <>
+                          {hasEntry && (
+                            <div
+                              className="track-bar"
+                              style={{
+                                left: `${(start / duration) * 100}%`,
+                                width: `${(img.animDuration / duration) * 100}%`,
+                              }}
+                            />
+                          )}
+                          {holdTime > 0 && (
+                            <div
+                              className="track-bar stay"
+                              style={{
+                                left: `${(entryEnd / duration) * 100}%`,
+                                width: `${(holdTime / duration) * 100}%`,
+                              }}
+                            />
+                          )}
+                          {img.exitAnimation && (
+                            <div
+                              className="track-bar exit"
+                              style={{
+                                left: `${(exitStart / duration) * 100}%`,
+                                width: `${(exitDur / duration) * 100}%`,
+                              }}
+                            />
+                          )}
+                        </>
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -2075,7 +2269,7 @@ function App() {
                     <input
                       id="bg-upload-input"
                       type="file"
-                      accept="image/*"
+                      accept="image/*,video/mp4"
                       hidden
                       onChange={(e) => {
                         const file = e.target.files?.[0]
@@ -2281,6 +2475,7 @@ function App() {
             </>
           ) : (
             <>
+              {!selectedImage && (
               <div className="panel-section">
                 <div className="section-header-row">
                   <h3>Auto Duration</h3>
@@ -2293,6 +2488,7 @@ function App() {
                   <input type="number" value={duration} min={0.5} step={0.5} disabled={autoFitDuration} onChange={(e) => setDuration(+e.target.value)} />
                 </div>
               </div>
+              )}
               {!selectedImage && (<>
               <div className="panel-section">
                 <h3>All Sequences — Entry</h3>
@@ -2306,19 +2502,19 @@ function App() {
                   <label>Easing</label>
                   <EasingDropdown value={batchEasing} onChange={setBatchEasing} />
                 </div>
-                <div className="field">
-                  <label>Duration (s)</label>
-                  <input type="number" value={batchAnimDuration} step={0.1} min={0.1} onChange={(e) => setBatchAnimDuration(+e.target.value)} />
-                </div>
                 <div className="field-row">
                   <div className="field">
-                    <label>Delay (s)</label>
-                    <input type="number" value={batchDelay} step={0.1} min={0} onChange={(e) => setBatchDelay(+e.target.value)} />
+                    <label>Entry (s)</label>
+                    <input type="number" value={batchAnimDuration} step={0.1} min={0.1} onChange={(e) => setBatchAnimDuration(+e.target.value)} />
                   </div>
                   <div className="field">
-                    <label>Overlap (s)</label>
-                    <input type="number" value={batchOverlap} step={0.1} min={0} max={batchAnimDuration} onChange={(e) => setBatchOverlap(+e.target.value)} />
+                    <label>Duration (s)</label>
+                    <input type="number" value={batchDelay} step={0.1} min={0} onChange={(e) => setBatchDelay(+e.target.value)} />
                   </div>
+                </div>
+                <div className="field">
+                  <label>Overlap (s)</label>
+                  <input type="number" value={batchOverlap} step={0.1} min={0} max={batchAnimDuration} onChange={(e) => setBatchOverlap(+e.target.value)} />
                 </div>
               </div>
 
@@ -2375,21 +2571,49 @@ function App() {
               {selectedImage && (
                 <>
                   <div className="panel-section">
-                    <h3>{selectedImage.name.substring(0, 20)} — Entry</h3>
-                    <div className="field">
-                      <label>Type</label>
-                      <select value={selectedImage.animation} onChange={(e) => updateImage(selectedImage.id, { animation: e.target.value })}>
-                        {ANIMATION_TYPES.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
-                      </select>
+                    <div className="section-header-row">
+                      <h3>{selectedImage.name.substring(0, 20)} — Entry</h3>
+                      <label className="checkbox-label compact">
+                        <input type="checkbox" checked={selectedImage.entryAnimation !== false} onChange={(e) => updateImage(selectedImage.id, { entryAnimation: e.target.checked })} />
+                      </label>
                     </div>
-                    <div className="field">
-                      <label>Easing</label>
-                      <EasingDropdown value={selectedImage.easing} onChange={(v) => updateImage(selectedImage.id, { easing: v })} />
-                    </div>
-                    <div className="field-row">
-                      <div className="field"><label>Delay (s)</label><input type="number" value={selectedImage.delay} step={0.1} min={0} onChange={(e) => updateImage(selectedImage.id, { delay: +e.target.value })} /></div>
-                      <div className="field"><label>Duration (s)</label><input type="number" value={selectedImage.animDuration} step={0.1} min={0.1} onChange={(e) => updateImage(selectedImage.id, { animDuration: +e.target.value })} /></div>
-                    </div>
+                    {selectedImage.entryAnimation !== false && (
+                      <>
+                        <div className="field">
+                          <label>Type</label>
+                          <select value={selectedImage.animation} onChange={(e) => updateImage(selectedImage.id, { animation: e.target.value })}>
+                            {ANIMATION_TYPES.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+                          </select>
+                        </div>
+                        <div className="field">
+                          <label>Easing</label>
+                          <EasingDropdown value={selectedImage.easing} onChange={(v) => updateImage(selectedImage.id, { easing: v })} />
+                        </div>
+                        <div className="field-row">
+                          <div className="field"><label>Entry (s)</label><input type="number" value={selectedImage.animDuration} step={0.1} min={0.1} onChange={(e) => updateImage(selectedImage.id, { animDuration: +e.target.value })} /></div>
+                          <div className="field"><label>Duration (s)</label><input type="number" value={selectedImage.exitDelay || 0} step={0.1} min={0} onChange={(e) => updateImage(selectedImage.id, { exitDelay: +e.target.value })} /></div>
+                        </div>
+                      </>
+                    )}
+                    {selectedImage.entryAnimation === false && (
+                      <div className="field">
+                        <label>Duration (s)</label>
+                        <input type="number" value={selectedImage.exitDelay || 0} step={0.1} min={0} onChange={(e) => updateImage(selectedImage.id, { exitDelay: +e.target.value })} />
+                      </div>
+                    )}
+                    {selectedImage.isVideo && selectedImage.videoDuration > 0 && (
+                      <div className="checkbox-field" style={{ marginTop: 4 }}>
+                        <label className="checkbox-label">
+                          <input type="checkbox"
+                            checked={Math.abs((selectedImage.exitDelay || 0) - Math.round(selectedImage.videoDuration * 10) / 10) < 0.05}
+                            onChange={(e) => {
+                              updateImage(selectedImage.id, { exitDelay: e.target.checked ? Math.round(selectedImage.videoDuration * 10) / 10 : 0 })
+                            }}
+                          />
+                          Use video duration ({selectedImage.videoDuration.toFixed(1)}s)
+                        </label>
+                      </div>
+                    )}
                   </div>
 
                   <div className="panel-section">
@@ -2414,10 +2638,6 @@ function App() {
                         <div className="field">
                           <label>Duration (s)</label>
                           <input type="number" value={selectedImage.exitDuration || 0.6} step={0.1} min={0.1} onChange={(e) => updateImage(selectedImage.id, { exitDuration: +e.target.value })} />
-                        </div>
-                        <div className="field">
-                          <label>Hold before exit (s)</label>
-                          <input type="number" value={selectedImage.exitDelay || 0} step={0.1} min={0} onChange={(e) => updateImage(selectedImage.id, { exitDelay: +e.target.value })} />
                         </div>
                       </>
                     )}
