@@ -248,6 +248,35 @@ function EasingDropdown({ value, onChange }) {
   )
 }
 
+// Monochrome noise tile — built once, reused for both the live preview overlay and canvas exports
+let _noiseTile = null
+let _noiseTileUrl = null
+function getNoiseTile() {
+  if (_noiseTile) return _noiseTile
+  const size = 160
+  const tile = document.createElement('canvas')
+  tile.width = size
+  tile.height = size
+  const tctx = tile.getContext('2d')
+  const imgData = tctx.createImageData(size, size)
+  const d = imgData.data
+  for (let i = 0; i < d.length; i += 4) {
+    const v = (Math.random() * 255) | 0
+    d[i] = v
+    d[i + 1] = v
+    d[i + 2] = v
+    d[i + 3] = 255
+  }
+  tctx.putImageData(imgData, 0, 0)
+  _noiseTile = tile
+  _noiseTileUrl = tile.toDataURL('image/png')
+  return tile
+}
+function getNoiseTileUrl() {
+  getNoiseTile()
+  return _noiseTileUrl
+}
+
 const rc = (f) => `/wallpapers/raycast/${f}.webp`
 const rs = (f) => `/wallpapers/resend/${f}.webp`
 const WALLPAPER_PRESETS = [
@@ -451,6 +480,7 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [exportProgress, setExportProgress] = useState(null) // null = not exporting, { format, progress: 0-1, status }
   const [artboardBg, setArtboardBg] = useState(() => loadSession('artboardBg', '#ffffff'))
+  const [noise, setNoise] = useState(() => loadSession('noise', 0))
   const [expandedBgGroups, setExpandedBgGroups] = useState([])
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
   const [autoFitDuration, setAutoFitDuration] = useState(true)
@@ -503,7 +533,8 @@ function App() {
     sessionStorage.setItem('animate_artboardHeight', JSON.stringify(artboardHeight))
     sessionStorage.setItem('animate_duration', JSON.stringify(duration))
     sessionStorage.setItem('animate_artboardBg', JSON.stringify(artboardBg))
-  }, [format, artboardWidth, artboardHeight, duration, artboardBg])
+    sessionStorage.setItem('animate_noise', JSON.stringify(noise))
+  }, [format, artboardWidth, artboardHeight, duration, artboardBg, noise])
 
   // Persist images to IndexedDB (handles large data)
   useEffect(() => {
@@ -733,22 +764,28 @@ function App() {
       setImagesWithUndo((prev) => {
         const all = [
           ...prev,
-          ...loaded.map((item, i) => ({
-            id: Date.now() + Math.random() + i,
-            src: item.src,
-            videoSrc: item.videoSrc || null,
-            isVideo: item.isVideo || false,
-            videoDuration: item.videoDuration || 0,
-            name: item.name,
-            x: 0,
-            y: 0,
-            width: item.naturalWidth,
-            height: item.naturalHeight,
-            borderRadius: 0,
-            borderSize: 0,
-            frameStyle: 'none',
-            borderColor: '#ffffff',
-          })),
+          ...loaded.map((item, i) => {
+            // Fit to canvas width when the image is wider than the artboard; otherwise keep natural size
+            const fit = item.naturalWidth > artboardWidth ? artboardWidth / item.naturalWidth : 1
+            const w = Math.round(item.naturalWidth * fit)
+            const h = Math.round(item.naturalHeight * fit)
+            return {
+              id: Date.now() + Math.random() + i,
+              src: item.src,
+              videoSrc: item.videoSrc || null,
+              isVideo: item.isVideo || false,
+              videoDuration: item.videoDuration || 0,
+              name: item.name,
+              x: Math.round((artboardWidth - w) / 2),
+              y: Math.round((artboardHeight - h) / 2),
+              width: w,
+              height: h,
+              borderRadius: 0,
+              borderSize: 0,
+              frameStyle: 'none',
+              borderColor: '#ffffff',
+            }
+          }),
         ]
         // Apply batch sequence — use running cursor to account for varying durations
         let cursor = 0
@@ -775,7 +812,32 @@ function App() {
         })
       })
     })
-  }, [setImagesWithUndo, batchAnimation, batchEasing, batchAnimDuration, batchDelay, batchOverlap, batchExitAnimation, batchExitType, batchExitEasing, batchExitDuration])
+  }, [setImagesWithUndo, batchAnimation, batchEasing, batchAnimDuration, batchDelay, batchOverlap, batchExitAnimation, batchExitType, batchExitEasing, batchExitDuration, artboardWidth, artboardHeight])
+
+  // Cmd/Ctrl+V — paste an image from the clipboard onto the artboard
+  useEffect(() => {
+    const handlePaste = (e) => {
+      const t = e.target
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return
+      const items = e.clipboardData?.items
+      if (!items) return
+      const files = []
+      for (const item of items) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (file) {
+            files.push(file.name ? file : new File([file], `pasted-image.${(item.type.split('/')[1] || 'png')}`, { type: item.type }))
+          }
+        }
+      }
+      if (files.length > 0) {
+        e.preventDefault()
+        addImageFiles(files)
+      }
+    }
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [addImageFiles])
 
   const handleImageUpload = (e) => {
     addImageFiles(e.target.files)
@@ -1656,13 +1718,20 @@ function App() {
         const iw = img.width - bs * 2
         const ih = img.height - bs * 2
         const ir = Math.max(0, r - bs)
-        const hasClip = r || bs || (img.frameStyle && img.frameStyle !== 'none')
+        const zoom = img.zoom || 1
+        const hasClip = r || bs || (img.frameStyle && img.frameStyle !== 'none') || zoom !== 1
         if (hasClip) {
           ctx.beginPath()
           ctx.roundRect(ix, iy, iw, ih, ir)
           ctx.clip()
         }
-        ctx.drawImage(img.el, ix, iy, iw, ih)
+        if (zoom !== 1) {
+          const zw = iw * zoom
+          const zh = ih * zoom
+          ctx.drawImage(img.el, ix - (zw - iw) / 2, iy - (zh - ih) / 2, zw, zh)
+        } else {
+          ctx.drawImage(img.el, ix, iy, iw, ih)
+        }
         ctx.restore()
         if (img.frameStyle && img.frameStyle !== 'none') {
           ctx.save()
@@ -1674,13 +1743,24 @@ function App() {
         }
       }
     }
+
+    if (noise > 0) {
+      const tile = getNoiseTile()
+      ctx.save()
+      ctx.globalAlpha = (noise / 100) * 0.5
+      const pattern = ctx.createPattern(tile, 'repeat')
+      ctx.fillStyle = pattern
+      ctx.fillRect(0, 0, w, h)
+      ctx.restore()
+    }
   }
 
-  const captureFrame = async () => {
+  const captureFrame = async (fmt = 'png', scale = 1) => {
     const canvas = document.createElement('canvas')
-    canvas.width = artboardWidth
-    canvas.height = artboardHeight
+    canvas.width = artboardWidth * scale
+    canvas.height = artboardHeight * scale
     const ctx = canvas.getContext('2d')
+    if (scale !== 1) ctx.scale(scale, scale)
 
     let bgCanvas = null
     try { bgCanvas = await loadBgForExport(artboardWidth, artboardHeight) } catch {}
@@ -1690,14 +1770,17 @@ function App() {
 
     renderFrame(ctx, bgCanvas, loadedImages, playbackTime, artboardWidth, artboardHeight)
 
+    const mime = fmt === 'webp' ? 'image/webp' : 'image/png'
+    const ext = fmt === 'webp' ? 'webp' : 'png'
+    const suffix = scale !== 1 ? `@${scale}x` : ''
     canvas.toBlob((blob) => {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `frame-${playbackTime.toFixed(2)}s.png`
+      a.download = `frame-${playbackTime.toFixed(2)}s${suffix}.${ext}`
       a.click()
       URL.revokeObjectURL(url)
-    }, 'image/png')
+    }, mime, fmt === 'webp' ? 0.95 : undefined)
   }
 
   const exportAnimation = async (exportFps = 30) => {
@@ -1910,7 +1993,7 @@ function App() {
           ) : (
             <button className="btn-play" onClick={() => playAnimation(playbackTime === 0 || playbackTime >= duration)}><Play size={14} weight="fill" /> Play</button>
           )}
-          <button className="btn-icon" onClick={captureFrame} title="Capture current frame"><Camera size={16} /></button>
+          <button className="btn-icon" onClick={() => captureFrame('png')} title="Capture current frame as PNG"><Camera size={16} /></button>
           <div className="btn-export-split">
             <button className="btn-export" onClick={() => exportAnimation(30)}><DownloadSimple size={14} weight="bold" /> Export</button>
             <DropdownMenu.Root>
@@ -1927,6 +2010,19 @@ function App() {
                   </DropdownMenu.Item>
                   <DropdownMenu.Item className="export-dropdown-item" onSelect={exportGif}>
                     <ImageSquare size={16} /> Export as GIF
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Separator className="export-dropdown-separator" />
+                  <DropdownMenu.Item className="export-dropdown-item" onSelect={() => captureFrame('png', 1)}>
+                    <ImageSquare size={16} /> Current frame as PNG
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item className="export-dropdown-item" onSelect={() => captureFrame('png', 2)}>
+                    <ImageSquare size={16} /> Current frame as PNG (2x)
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item className="export-dropdown-item" onSelect={() => captureFrame('webp', 1)}>
+                    <ImageSquare size={16} /> Current frame as WebP
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item className="export-dropdown-item" onSelect={() => captureFrame('webp', 2)}>
+                    <ImageSquare size={16} /> Current frame as WebP (2x)
                   </DropdownMenu.Item>
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
@@ -2023,7 +2119,7 @@ function App() {
                       transform: animStyle.transform,
                       cursor: isPlaying ? 'default' : 'move',
                       borderRadius: img.borderRadius ? `${img.borderRadius}px` : undefined,
-                      overflow: (img.borderRadius || img.borderSize || (img.frameStyle && img.frameStyle !== 'none')) ? 'hidden' : undefined,
+                      overflow: (img.borderRadius || img.borderSize || (img.frameStyle && img.frameStyle !== 'none') || (img.zoom && img.zoom !== 1)) ? 'hidden' : undefined,
                       background: img.borderSize > 0 ? (() => {
                         const bc = img.borderColor || '#ffffff'
                         if (img.frameStyle === 'glass' || img.frameStyle === 'glass-light' || img.frameStyle === 'glass-dark') {
@@ -2045,11 +2141,17 @@ function App() {
                         const layerVisibleAt = img.delay + off + (hasEntry ? img.animDuration : 0)
                         return Math.max(0, playbackTime - layerVisibleAt)
                       })() : 0
-                      const mediaEl = showVideo ? (
+                      const rawMedia = showVideo ? (
                         <VideoFrameView videoSrc={img.videoSrc} videoTime={videoTime} />
                       ) : (
                         <img src={img.src} alt={img.name} draggable={false} />
                       )
+                      const zoom = img.zoom || 1
+                      const mediaEl = zoom !== 1 ? (
+                        <div style={{ width: '100%', height: '100%', transform: `scale(${zoom})`, transformOrigin: 'center' }}>
+                          {rawMedia}
+                        </div>
+                      ) : rawMedia
                       return img.borderSize > 0 ? (
                         <div className="border-inset" style={{
                           position: 'absolute',
@@ -2075,6 +2177,19 @@ function App() {
                   </div>
                 )
               })}
+              {noise > 0 && (
+                <div
+                  className="artboard-noise"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    backgroundImage: `url(${getNoiseTileUrl()})`,
+                    backgroundRepeat: 'repeat',
+                    opacity: (noise / 100) * 0.5,
+                  }}
+                />
+              )}
             </div>
           </div>
           </div>
@@ -2283,6 +2398,29 @@ function App() {
                   </div>
                 </div>
               </div>
+              <div className="panel-section">
+                <h3>Effects</h3>
+                <div className="slider-field">
+                  <label>Noise</label>
+                  <div className="slider-field-row">
+                    <Slider
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={noise}
+                      onValueChange={setNoise}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={noise}
+                      onChange={(e) => setNoise(Math.max(0, Math.min(100, +e.target.value)))}
+                      className="border-radius-number"
+                    />
+                  </div>
+                </div>
+              </div>
             </>
           ) : activeTab === 'layers' ? (
             <>
@@ -2326,7 +2464,13 @@ function App() {
                         const newW = +e.target.value
                         if (newW && newW !== selectedImage.width) {
                           const aspect = selectedImage.height / selectedImage.width
-                          updateImage(selectedImage.id, { width: newW, height: Math.round(newW * aspect) })
+                          const newH = Math.round(newW * aspect)
+                          updateImage(selectedImage.id, {
+                            width: newW,
+                            height: newH,
+                            x: Math.round(selectedImage.x + (selectedImage.width - newW) / 2),
+                            y: Math.round(selectedImage.y + (selectedImage.height - newH) / 2),
+                          })
                         }
                       }}
                       onKeyDown={(e) => {
@@ -2338,13 +2482,39 @@ function App() {
                         const newH = +e.target.value
                         if (newH && newH !== selectedImage.height) {
                           const aspect = selectedImage.width / selectedImage.height
-                          updateImage(selectedImage.id, { height: newH, width: Math.round(newH * aspect) })
+                          const newW = Math.round(newH * aspect)
+                          updateImage(selectedImage.id, {
+                            height: newH,
+                            width: newW,
+                            x: Math.round(selectedImage.x + (selectedImage.width - newW) / 2),
+                            y: Math.round(selectedImage.y + (selectedImage.height - newH) / 2),
+                          })
                         }
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') e.target.blur()
                       }}
                     /></div>
+                  </div>
+                  <div className="slider-field">
+                    <label>Zoom</label>
+                    <div className="slider-field-row">
+                      <Slider
+                        min={100}
+                        max={400}
+                        step={1}
+                        value={Math.round((selectedImage.zoom || 1) * 100)}
+                        onValueChange={(v) => updateImage(selectedImage.id, { zoom: v / 100 })}
+                      />
+                      <input
+                        type="number"
+                        min="100"
+                        max="400"
+                        value={Math.round((selectedImage.zoom || 1) * 100)}
+                        onChange={(e) => updateImage(selectedImage.id, { zoom: Math.max(100, Math.min(400, +e.target.value)) / 100 })}
+                        className="border-radius-number"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
