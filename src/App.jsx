@@ -350,6 +350,10 @@ const WALLPAPER_GROUPS = {
     { name: 'Cream Soft', url: ae('cream-soft') },
     { name: 'Ink Clouds', url: ae('ink-clouds') },
     { name: 'Dark Paint', url: ae('dark-paint') },
+    { name: 'Jade', url: ae('jade') },
+    { name: 'Obsidian Curves', url: ae('obsidian-curves') },
+    { name: 'Mono Waves', url: ae('mono-waves') },
+    { name: 'Dark Metal', url: ae('dark-metal') },
   ],
   // Nature photos from Unsplash (unsplash.com/license — free for commercial use)
   'Nature': [
