@@ -351,18 +351,21 @@ const WALLPAPER_GROUPS = {
     { name: 'Ink Clouds', url: ae('ink-clouds') },
     { name: 'Dark Paint', url: ae('dark-paint') },
   ],
-  // Minimal nature photos from Unsplash (unsplash.com/license — free for commercial use)
+  // Nature photos from Unsplash (unsplash.com/license — free for commercial use)
   'Nature': [
-    { name: 'Misty Mountains', url: nt('misty-mountains') },
+    { name: 'Forest Lake', url: nt('forest-lake') },
+    { name: 'Forest Aerial', url: nt('forest-aerial') },
+    { name: 'Golden Forest', url: nt('golden-forest') },
+    { name: 'Night Forest', url: nt('night-forest') },
+    { name: 'Starry Night', url: nt('starry-night') },
     { name: 'Starry Peaks', url: nt('starry-peaks') },
     { name: 'Night Sky', url: nt('night-sky') },
-    { name: 'Sea Horizon', url: nt('sea-horizon') },
-    { name: 'Ocean Beach', url: nt('ocean-beach') },
-    { name: 'Dusk Sea', url: nt('dusk-sea') },
-    { name: 'Teal Shore', url: nt('teal-shore') },
-    { name: 'Green Hills', url: nt('green-hills') },
-    { name: 'Foggy Peaks', url: nt('foggy-peaks') },
+    { name: 'Mountain Lake', url: nt('mountain-lake') },
+    { name: 'Ocean Sunset', url: nt('ocean-sunset') },
+    { name: 'Dolomites', url: nt('dolomites') },
     { name: 'Crimson Peaks', url: nt('crimson-peaks') },
+    { name: 'Green Leaf', url: nt('green-leaf') },
+    { name: 'White Flowers', url: nt('white-flowers') },
   ],
   'Abstract': [
     { name: 'Glaze 1', url: rc('glaze_1') },
@@ -621,6 +624,12 @@ function App() {
   const [dither, setDither] = useState(() => loadSession('dither', 0))
   const [scanlines, setScanlines] = useState(() => loadSession('scanlines', 0))
   const [vignette, setVignette] = useState(() => loadSession('vignette', 0))
+  // Background CSS filters (neutral defaults = no effect)
+  const [bgHue, setBgHue] = useState(() => loadSession('bgHue', 0))
+  const [bgSaturation, setBgSaturation] = useState(() => loadSession('bgSaturation', 100))
+  const [bgBrightness, setBgBrightness] = useState(() => loadSession('bgBrightness', 100))
+  const [bgContrast, setBgContrast] = useState(() => loadSession('bgContrast', 100))
+  const [bgBlur, setBgBlur] = useState(() => loadSession('bgBlur', 0))
   const [expandedBgGroups, setExpandedBgGroups] = useState([])
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
   const [autoFitDuration, setAutoFitDuration] = useState(true)
@@ -677,7 +686,12 @@ function App() {
     sessionStorage.setItem('animate_dither', JSON.stringify(dither))
     sessionStorage.setItem('animate_scanlines', JSON.stringify(scanlines))
     sessionStorage.setItem('animate_vignette', JSON.stringify(vignette))
-  }, [format, artboardWidth, artboardHeight, duration, artboardBg, noise, dither, scanlines, vignette])
+    sessionStorage.setItem('animate_bgHue', JSON.stringify(bgHue))
+    sessionStorage.setItem('animate_bgSaturation', JSON.stringify(bgSaturation))
+    sessionStorage.setItem('animate_bgBrightness', JSON.stringify(bgBrightness))
+    sessionStorage.setItem('animate_bgContrast', JSON.stringify(bgContrast))
+    sessionStorage.setItem('animate_bgBlur', JSON.stringify(bgBlur))
+  }, [format, artboardWidth, artboardHeight, duration, artboardBg, noise, dither, scanlines, vignette, bgHue, bgSaturation, bgBrightness, bgContrast, bgBlur])
 
   // Persist images to IndexedDB (handles large data)
   useEffect(() => {
@@ -1243,13 +1257,21 @@ function App() {
         setCanvasZoom(newZoom)
         setCanvasPan({ x: newPanX, y: newPanY })
       } else {
-        // Pan with scroll — only useful when zoomed in past fit
+        // Pan with scroll
         e.preventDefault()
-        if (canvasZoom === null || canvasZoom <= getAutoFitScale()) return
-        setCanvasPan((prev) => ({
-          x: prev.x - e.deltaX,
-          y: prev.y - e.deltaY,
-        }))
+        if (canvasZoom === null) {
+          // Convert auto-fit to manual zoom without a visual jump
+          const rect = el.getBoundingClientRect()
+          const z = getAutoFitScale()
+          const base = getEffectivePan(rect, z)
+          setCanvasZoom(z)
+          setCanvasPan({ x: base.x - e.deltaX, y: base.y - e.deltaY })
+        } else {
+          setCanvasPan((prev) => ({
+            x: prev.x - e.deltaX,
+            y: prev.y - e.deltaY,
+          }))
+        }
       }
     }
     el.addEventListener('wheel', handleWheel, { passive: false })
@@ -1277,15 +1299,21 @@ function App() {
     }
   }, [])
 
-  // Pan with middle mouse or space+drag — only when zoomed in past fit
-  const canPan = canvasZoom !== null && canvasZoom > getAutoFitScale()
-
+  // Pan with middle mouse or space+drag
   const handleCanvasPanStart = (e) => {
-    if (!canPan) return
     if (e.button === 1 || (spaceHeld && e.button === 0)) {
       e.preventDefault()
+      let basePan = canvasPan
+      if (canvasZoom === null) {
+        // Convert auto-fit to manual zoom without a visual jump
+        const el = canvasAreaRef.current
+        const z = getAutoFitScale()
+        if (el) basePan = getEffectivePan(el.getBoundingClientRect(), z)
+        setCanvasZoom(z)
+        setCanvasPan(basePan)
+      }
       setIsPanning(true)
-      panStart.current = { x: e.clientX - canvasPan.x, y: e.clientY - canvasPan.y }
+      panStart.current = { x: e.clientX - basePan.x, y: e.clientY - basePan.y }
     }
   }
 
@@ -1780,13 +1808,37 @@ function App() {
     ctx.restore()
   }
 
+  // CSS filter string for the background — empty when everything is at neutral
+  const getBgFilter = () => {
+    const parts = []
+    if (bgHue !== 0) parts.push(`hue-rotate(${bgHue}deg)`)
+    if (bgSaturation !== 100) parts.push(`saturate(${bgSaturation}%)`)
+    if (bgBrightness !== 100) parts.push(`brightness(${bgBrightness}%)`)
+    if (bgContrast !== 100) parts.push(`contrast(${bgContrast}%)`)
+    if (bgBlur > 0) parts.push(`blur(${bgBlur}px)`)
+    return parts.join(' ')
+  }
+
   const renderFrame = (ctx, bgCanvas, loadedImages, t, w, h) => {
     ctx.clearRect(0, 0, w, h)
+    const bgFilter = getBgFilter()
     if (bgCanvas) {
-      ctx.drawImage(bgCanvas, 0, 0)
+      if (bgFilter) {
+        ctx.save()
+        ctx.filter = bgFilter
+        // Overscan when blurring so edges stay covered
+        const pad = bgBlur > 0 ? bgBlur * 2 : 0
+        ctx.drawImage(bgCanvas, -pad, -pad, w + pad * 2, h + pad * 2)
+        ctx.restore()
+      } else {
+        ctx.drawImage(bgCanvas, 0, 0)
+      }
     } else {
+      ctx.save()
+      if (bgFilter) ctx.filter = bgFilter
       ctx.fillStyle = artboardBg
       ctx.fillRect(0, 0, w, h)
+      ctx.restore()
     }
 
     const offset = showFirstFrame ? firstFrameDuration + firstFrameDelay : 0
@@ -2282,7 +2334,7 @@ function App() {
         {/* Canvas */}
         <div
           ref={canvasAreaRef}
-          className={`canvas-area ${canvasDragOver ? 'drag-over' : ''} ${isPanning || (spaceHeld && canPan) ? 'panning' : ''}`}
+          className={`canvas-area ${canvasDragOver ? 'drag-over' : ''} ${isPanning || spaceHeld ? 'panning' : ''}`}
           onMouseDown={(e) => {
             handleCanvasPanStart(e)
             if (!spaceHeld && e.button === 0 && (e.target === e.currentTarget || (e.target.closest('.artboard') && !e.target.closest('.artboard-image')))) {
@@ -2321,6 +2373,15 @@ function App() {
                   height: artboardHeight,
                   transform: `scale(${scale})`,
                   transformOrigin: 'top left',
+                }}
+              >
+              <div
+                className="artboard-bg"
+                style={{
+                  position: 'absolute',
+                  inset: bgBlur > 0 ? -2 * bgBlur : 0,
+                  pointerEvents: 'none',
+                  filter: getBgFilter() || undefined,
                   ...(artboardBg.includes('url(') ? {
                     backgroundImage: artboardBg.replace(/\)\s*center\/cover/, ')'),
                     backgroundSize: 'cover',
@@ -2328,7 +2389,7 @@ function App() {
                     backgroundRepeat: 'no-repeat',
                   } : { background: artboardBg }),
                 }}
-              >
+              />
               {images.map((img) => {
                 const animStyle = getImageAnimStyle(img)
                 const isSelected = selectedIds.includes(img.id)
@@ -2695,6 +2756,37 @@ function App() {
                         max="100"
                         value={value}
                         onChange={(e) => set(Math.max(0, Math.min(100, +e.target.value)))}
+                        className="border-radius-number"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="panel-section">
+                <h3>Filters</h3>
+                {[
+                  { label: 'Hue', value: bgHue, set: setBgHue, min: 0, max: 360 },
+                  { label: 'Saturation', value: bgSaturation, set: setBgSaturation, min: 0, max: 200 },
+                  { label: 'Brightness', value: bgBrightness, set: setBgBrightness, min: 0, max: 200 },
+                  { label: 'Contrast', value: bgContrast, set: setBgContrast, min: 0, max: 200 },
+                  { label: 'Blur', value: bgBlur, set: setBgBlur, min: 0, max: 40 },
+                ].map(({ label, value, set, min, max }) => (
+                  <div className="slider-field" key={label}>
+                    <label>{label}</label>
+                    <div className="slider-field-row">
+                      <Slider
+                        min={min}
+                        max={max}
+                        step={1}
+                        value={value}
+                        onValueChange={set}
+                      />
+                      <input
+                        type="number"
+                        min={min}
+                        max={max}
+                        value={value}
+                        onChange={(e) => set(Math.max(min, Math.min(max, +e.target.value)))}
                         className="border-radius-number"
                       />
                     </div>
