@@ -631,8 +631,6 @@ function App() {
   // Background CSS filters (neutral defaults = no effect)
   const [bgHue, setBgHue] = useState(() => loadSession('bgHue', 0))
   const [bgSaturation, setBgSaturation] = useState(() => loadSession('bgSaturation', 100))
-  const [bgBrightness, setBgBrightness] = useState(() => loadSession('bgBrightness', 100))
-  const [bgContrast, setBgContrast] = useState(() => loadSession('bgContrast', 100))
   const [bgBlur, setBgBlur] = useState(() => loadSession('bgBlur', 0))
   const [expandedBgGroups, setExpandedBgGroups] = useState([])
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
@@ -692,10 +690,8 @@ function App() {
     sessionStorage.setItem('animate_vignette', JSON.stringify(vignette))
     sessionStorage.setItem('animate_bgHue', JSON.stringify(bgHue))
     sessionStorage.setItem('animate_bgSaturation', JSON.stringify(bgSaturation))
-    sessionStorage.setItem('animate_bgBrightness', JSON.stringify(bgBrightness))
-    sessionStorage.setItem('animate_bgContrast', JSON.stringify(bgContrast))
     sessionStorage.setItem('animate_bgBlur', JSON.stringify(bgBlur))
-  }, [format, artboardWidth, artboardHeight, duration, artboardBg, noise, dither, scanlines, vignette, bgHue, bgSaturation, bgBrightness, bgContrast, bgBlur])
+  }, [format, artboardWidth, artboardHeight, duration, artboardBg, noise, dither, scanlines, vignette, bgHue, bgSaturation, bgBlur])
 
   // Persist images to IndexedDB (handles large data)
   useEffect(() => {
@@ -1817,8 +1813,6 @@ function App() {
     const parts = []
     if (bgHue !== 0) parts.push(`hue-rotate(${bgHue}deg)`)
     if (bgSaturation !== 100) parts.push(`saturate(${bgSaturation}%)`)
-    if (bgBrightness !== 100) parts.push(`brightness(${bgBrightness}%)`)
-    if (bgContrast !== 100) parts.push(`contrast(${bgContrast}%)`)
     if (bgBlur > 0) parts.push(`blur(${bgBlur}px)`)
     return parts.join(' ')
   }
@@ -2771,8 +2765,6 @@ function App() {
                 {[
                   { label: 'Hue', value: bgHue, set: setBgHue, min: 0, max: 360 },
                   { label: 'Saturation', value: bgSaturation, set: setBgSaturation, min: 0, max: 200 },
-                  { label: 'Brightness', value: bgBrightness, set: setBgBrightness, min: 0, max: 200 },
-                  { label: 'Contrast', value: bgContrast, set: setBgContrast, min: 0, max: 200 },
                   { label: 'Blur', value: bgBlur, set: setBgBlur, min: 0, max: 40 },
                 ].map(({ label, value, set, min, max }) => (
                   <div className="slider-field" key={label}>
