@@ -2267,18 +2267,18 @@ function App() {
           )}
           <button className="btn-icon" onClick={() => captureFrame('png')} title="Capture current frame as PNG"><Camera size={18} weight="fill" /></button>
           <div className="btn-export-split">
-            <button className="btn-export" onClick={() => exportAnimation(30)}><DownloadSimple size={14} weight="bold" /> Export</button>
+            <button className="btn-export" onClick={() => exportAnimation(60)}><DownloadSimple size={14} weight="bold" /> Export</button>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <button className="btn-export-caret" aria-label="Export options"><CaretDown size={12} weight="bold" /></button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content className="export-dropdown" sideOffset={6} align="end">
-                  <DropdownMenu.Item className="export-dropdown-item" onSelect={() => exportAnimation(30)}>
-                    <FileVideo size={16} /> Export as MP4 (30fps)
-                  </DropdownMenu.Item>
                   <DropdownMenu.Item className="export-dropdown-item" onSelect={() => exportAnimation(60)}>
                     <FileVideo size={16} /> Export as MP4 (60fps)
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item className="export-dropdown-item" onSelect={() => exportAnimation(30)}>
+                    <FileVideo size={16} /> Export as MP4 (30fps)
                   </DropdownMenu.Item>
                   <DropdownMenu.Item className="export-dropdown-item" onSelect={exportGif}>
                     <ImageSquare size={16} /> Export as GIF
