@@ -633,6 +633,7 @@ function App() {
   const [bgHue, setBgHue] = useState(() => loadSession('bgHue', 0))
   const [bgSaturation, setBgSaturation] = useState(() => loadSession('bgSaturation', 100))
   const [bgBlur, setBgBlur] = useState(() => loadSession('bgBlur', 0))
+  const [edgePadding, setEdgePadding] = useState(0)
   const [expandedBgGroups, setExpandedBgGroups] = useState([])
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
   const [autoFitDuration, setAutoFitDuration] = useState(true)
@@ -1491,6 +1492,36 @@ function App() {
   }
 
   // Proportional resize for multi-selected layers
+  // Fit selected images inside the artboard inset by `pad` on every edge,
+  // preserving aspect ratio and centering. Live updates during a slider drag
+  // push a single undo snapshot per gesture (reset via commitEdgePadding).
+  const edgePadUndoPushed = useRef(false)
+  const fitSelectedWithPadding = (pad) => {
+    if (selectedIds.length === 0) return
+    const availW = Math.max(20, artboardWidth - pad * 2)
+    const availH = Math.max(20, artboardHeight - pad * 2)
+    setImages((prev) => {
+      if (!edgePadUndoPushed.current) {
+        pushUndo(prev)
+        edgePadUndoPushed.current = true
+      }
+      return prev.map((img) => {
+        if (!selectedIds.includes(img.id)) return img
+        const s = Math.min(availW / img.width, availH / img.height)
+        const w = Math.round(img.width * s)
+        const h = Math.round(img.height * s)
+        return {
+          ...img,
+          width: w,
+          height: h,
+          x: Math.round((artboardWidth - w) / 2),
+          y: Math.round((artboardHeight - h) / 2),
+        }
+      })
+    })
+  }
+  const commitEdgePadding = () => { edgePadUndoPushed.current = false }
+
   const resizeSelectedProportionally = (targetWidth) => {
     if (selectedIds.length === 0 || !targetWidth || targetWidth <= 0) return
     setImagesWithUndo((prev) =>
@@ -3030,6 +3061,38 @@ function App() {
                       />
                     </div>
                   </div>
+                  {(() => {
+                    const maxPad = Math.max(0, Math.floor(Math.min(artboardWidth, artboardHeight) / 2) - 20)
+                    return (
+                      <div className="slider-field" style={{ marginTop: 10 }}>
+                        <label>Edge Padding</label>
+                        <p className="hint-small">Fits and centers selected images inside the artboard with this much space from the edges.</p>
+                        <div className="slider-field-row">
+                          <Slider
+                            min={0}
+                            max={maxPad}
+                            step={1}
+                            value={edgePadding}
+                            onValueChange={(v) => { setEdgePadding(v); fitSelectedWithPadding(v) }}
+                            onValueCommit={commitEdgePadding}
+                          />
+                          <input
+                            type="number"
+                            min={0}
+                            max={maxPad}
+                            value={edgePadding}
+                            onChange={(e) => {
+                              const v = Math.max(0, Math.min(maxPad, +e.target.value))
+                              setEdgePadding(v)
+                              fitSelectedWithPadding(v)
+                              commitEdgePadding()
+                            }}
+                            className="border-radius-number"
+                          />
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
 

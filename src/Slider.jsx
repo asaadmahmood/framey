@@ -2,7 +2,7 @@ import * as React from 'react'
 import * as SliderPrimitive from '@radix-ui/react-slider'
 import './Slider.css'
 
-export function Slider({ min = 0, max = 100, step = 1, value, onValueChange }) {
+export function Slider({ min = 0, max = 100, step = 1, value, onValueChange, onValueCommit }) {
   return (
     <SliderPrimitive.Root
       className="align-slider-root"
@@ -11,6 +11,7 @@ export function Slider({ min = 0, max = 100, step = 1, value, onValueChange }) {
       step={step}
       value={[value]}
       onValueChange={(vals) => onValueChange(vals[0])}
+      onValueCommit={onValueCommit ? (vals) => onValueCommit(vals[0]) : undefined}
     >
       <SliderPrimitive.Track className="align-slider-track">
         <SliderPrimitive.Range className="align-slider-range" />
