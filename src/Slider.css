@@ -33,23 +33,23 @@
   position: absolute;
   height: 100%;
   background: rgba(255, 255, 255, 0.11);
-  border-radius: 999px;
+  border-radius: 999px 0 0 999px;
 }
 
 .align-slider-thumb {
   display: block;
-  width: 5px;
-  height: 16px;
-  border-radius: 999px;
+  width: 6px;
+  height: 30px;
+  border-radius: 3px;
   background: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   outline: none;
   cursor: grab;
-  transition: transform 150ms ease;
+  transition: opacity 150ms ease;
 }
 
 .align-slider-thumb:hover {
-  transform: scaleY(1.15);
+  opacity: 0.9;
 }
 
 .align-slider-thumb:focus-visible {
@@ -58,5 +58,5 @@
 
 .align-slider-thumb:active {
   cursor: grabbing;
-  transform: scaleY(1.15);
+  opacity: 0.9;
 }
