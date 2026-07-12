@@ -1472,6 +1472,66 @@
   margin-bottom: 10px;
 }
 
+.effect-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.effect-label-row label {
+  margin-bottom: 0;
+}
+
+.mini-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.mini-toggle span {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.mini-toggle input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 28px;
+  height: 16px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 999px;
+  position: relative;
+  cursor: pointer;
+  transition: background var(--transition);
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.mini-toggle input[type="checkbox"]::after {
+  content: '';
+  position: absolute;
+  top: 2.5px;
+  left: 2.5px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.45);
+  transition: all var(--transition);
+}
+
+.mini-toggle input[type="checkbox"]:checked {
+  background: #fafafa;
+}
+
+.mini-toggle input[type="checkbox"]:checked::after {
+  left: 14.5px;
+  background: #161618;
+}
+
 .slider-field label {
   display: block;
   font-size: 11px;

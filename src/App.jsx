@@ -625,6 +625,7 @@ function App() {
   const [exportProgress, setExportProgress] = useState(null) // null = not exporting, { format, progress: 0-1, status }
   const [artboardBg, setArtboardBg] = useState(() => loadSession('artboardBg', '#ffffff'))
   const [noise, setNoise] = useState(() => loadSession('noise', 0))
+  const [noiseAll, setNoiseAll] = useState(() => loadSession('noiseAll', true))
   const [dither, setDither] = useState(() => loadSession('dither', 0))
   const [scanlines, setScanlines] = useState(() => loadSession('scanlines', 0))
   const [vignette, setVignette] = useState(() => loadSession('vignette', 0))
@@ -685,13 +686,14 @@ function App() {
     sessionStorage.setItem('animate_duration', JSON.stringify(duration))
     sessionStorage.setItem('animate_artboardBg', JSON.stringify(artboardBg))
     sessionStorage.setItem('animate_noise', JSON.stringify(noise))
+    sessionStorage.setItem('animate_noiseAll', JSON.stringify(noiseAll))
     sessionStorage.setItem('animate_dither', JSON.stringify(dither))
     sessionStorage.setItem('animate_scanlines', JSON.stringify(scanlines))
     sessionStorage.setItem('animate_vignette', JSON.stringify(vignette))
     sessionStorage.setItem('animate_bgHue', JSON.stringify(bgHue))
     sessionStorage.setItem('animate_bgSaturation', JSON.stringify(bgSaturation))
     sessionStorage.setItem('animate_bgBlur', JSON.stringify(bgBlur))
-  }, [format, artboardWidth, artboardHeight, duration, artboardBg, noise, dither, scanlines, vignette, bgHue, bgSaturation, bgBlur])
+  }, [format, artboardWidth, artboardHeight, duration, artboardBg, noise, noiseAll, dither, scanlines, vignette, bgHue, bgSaturation, bgBlur])
 
   // Persist images to IndexedDB (handles large data)
   useEffect(() => {
@@ -1839,6 +1841,45 @@ function App() {
       ctx.restore()
     }
 
+    // Background-level effects — drawn before the layers so they only affect the background
+    if (dither > 0) {
+      const tile = getDitherTile()
+      ctx.save()
+      ctx.globalAlpha = dither / 100
+      ctx.globalCompositeOperation = 'overlay'
+      ctx.fillStyle = ctx.createPattern(tile, 'repeat')
+      ctx.fillRect(0, 0, w, h)
+      ctx.restore()
+    }
+    if (scanlines > 0) {
+      const tile = getScanlineTile()
+      ctx.save()
+      ctx.globalAlpha = (scanlines / 100) * 0.55
+      ctx.fillStyle = ctx.createPattern(tile, 'repeat')
+      ctx.fillRect(0, 0, w, h)
+      ctx.restore()
+    }
+    if (vignette > 0) {
+      ctx.save()
+      const vcx = w / 2
+      const vcy = h / 2
+      const vouter = Math.sqrt(vcx * vcx + vcy * vcy)
+      const vgrad = ctx.createRadialGradient(vcx, vcy, vouter * 0.45, vcx, vcy, vouter)
+      vgrad.addColorStop(0, 'rgba(0,0,0,0)')
+      vgrad.addColorStop(1, `rgba(0,0,0,${(vignette / 100) * 0.85})`)
+      ctx.fillStyle = vgrad
+      ctx.fillRect(0, 0, w, h)
+      ctx.restore()
+    }
+    if (noise > 0 && !noiseAll) {
+      const tile = getNoiseTile()
+      ctx.save()
+      ctx.globalAlpha = (noise / 100) * 0.5
+      ctx.fillStyle = ctx.createPattern(tile, 'repeat')
+      ctx.fillRect(0, 0, w, h)
+      ctx.restore()
+    }
+
     const offset = showFirstFrame ? firstFrameDuration + firstFrameDelay : 0
 
     // During first-frame hold, draw only the first image
@@ -1982,46 +2023,13 @@ function App() {
       }
     }
 
-    if (noise > 0) {
+    // Noise over everything only when "all layers" is on
+    if (noise > 0 && noiseAll) {
       const tile = getNoiseTile()
       ctx.save()
       ctx.globalAlpha = (noise / 100) * 0.5
       const pattern = ctx.createPattern(tile, 'repeat')
       ctx.fillStyle = pattern
-      ctx.fillRect(0, 0, w, h)
-      ctx.restore()
-    }
-
-    if (dither > 0) {
-      const tile = getDitherTile()
-      ctx.save()
-      ctx.globalAlpha = dither / 100
-      ctx.globalCompositeOperation = 'overlay'
-      const pattern = ctx.createPattern(tile, 'repeat')
-      ctx.fillStyle = pattern
-      ctx.fillRect(0, 0, w, h)
-      ctx.restore()
-    }
-
-    if (scanlines > 0) {
-      const tile = getScanlineTile()
-      ctx.save()
-      ctx.globalAlpha = (scanlines / 100) * 0.55
-      const pattern = ctx.createPattern(tile, 'repeat')
-      ctx.fillStyle = pattern
-      ctx.fillRect(0, 0, w, h)
-      ctx.restore()
-    }
-
-    if (vignette > 0) {
-      ctx.save()
-      const cx = w / 2
-      const cy = h / 2
-      const outer = Math.sqrt(cx * cx + cy * cy)
-      const grad = ctx.createRadialGradient(cx, cy, outer * 0.45, cx, cy, outer)
-      grad.addColorStop(0, 'rgba(0,0,0,0)')
-      grad.addColorStop(1, `rgba(0,0,0,${(vignette / 100) * 0.85})`)
-      ctx.fillStyle = grad
       ctx.fillRect(0, 0, w, h)
       ctx.restore()
     }
@@ -2388,6 +2396,53 @@ function App() {
                   } : { background: artboardBg }),
                 }}
               />
+              {dither > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    backgroundImage: `url(${getDitherTileUrl()})`,
+                    backgroundRepeat: 'repeat',
+                    opacity: dither / 100,
+                    mixBlendMode: 'overlay',
+                  }}
+                />
+              )}
+              {scanlines > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    backgroundImage: `url(${getScanlineTileUrl()})`,
+                    backgroundRepeat: 'repeat',
+                    opacity: (scanlines / 100) * 0.55,
+                  }}
+                />
+              )}
+              {vignette > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    background: `radial-gradient(circle, rgba(0,0,0,0) 45%, rgba(0,0,0,${(vignette / 100) * 0.85}) 100%)`,
+                  }}
+                />
+              )}
+              {noise > 0 && !noiseAll && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    backgroundImage: `url(${getNoiseTileUrl()})`,
+                    backgroundRepeat: 'repeat',
+                    opacity: (noise / 100) * 0.5,
+                  }}
+                />
+              )}
               {images.map((img) => {
                 const animStyle = getImageAnimStyle(img)
                 const isSelected = selectedIds.includes(img.id)
@@ -2462,7 +2517,7 @@ function App() {
                   </div>
                 )
               })}
-              {noise > 0 && (
+              {noise > 0 && noiseAll && (
                 <div
                   className="artboard-noise"
                   style={{
@@ -2472,41 +2527,6 @@ function App() {
                     backgroundImage: `url(${getNoiseTileUrl()})`,
                     backgroundRepeat: 'repeat',
                     opacity: (noise / 100) * 0.5,
-                  }}
-                />
-              )}
-              {dither > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    pointerEvents: 'none',
-                    backgroundImage: `url(${getDitherTileUrl()})`,
-                    backgroundRepeat: 'repeat',
-                    opacity: dither / 100,
-                    mixBlendMode: 'overlay',
-                  }}
-                />
-              )}
-              {scanlines > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    pointerEvents: 'none',
-                    backgroundImage: `url(${getScanlineTileUrl()})`,
-                    backgroundRepeat: 'repeat',
-                    opacity: (scanlines / 100) * 0.55,
-                  }}
-                />
-              )}
-              {vignette > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    pointerEvents: 'none',
-                    background: `radial-gradient(circle, rgba(0,0,0,0) 45%, rgba(0,0,0,${(vignette / 100) * 0.85}) 100%)`,
                   }}
                 />
               )}
@@ -2733,13 +2753,21 @@ function App() {
               <div className="panel-section">
                 <h3>Effects</h3>
                 {[
-                  { label: 'Noise', value: noise, set: setNoise },
+                  { label: 'Noise', value: noise, set: setNoise, hasAllToggle: true },
                   { label: 'Dither', value: dither, set: setDither },
                   { label: 'Scanlines', value: scanlines, set: setScanlines },
                   { label: 'Vignette', value: vignette, set: setVignette },
-                ].map(({ label, value, set }) => (
+                ].map(({ label, value, set, hasAllToggle }) => (
                   <div className="slider-field" key={label}>
-                    <label>{label}</label>
+                    <div className="effect-label-row">
+                      <label>{label}</label>
+                      {hasAllToggle && (
+                        <label className="mini-toggle" title="Also apply to image layers">
+                          <span>All layers</span>
+                          <input type="checkbox" checked={noiseAll} onChange={(e) => setNoiseAll(e.target.checked)} />
+                        </label>
+                      )}
+                    </div>
                     <div className="slider-field-row">
                       <Slider
                         min={0}
