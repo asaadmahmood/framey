@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Play, Stop, DownloadSimple, Plus, SquaresFour, Stack, Trash, DotsSixVertical, AlignLeft, AlignCenterHorizontal, AlignRight, AlignTop, AlignCenterVertical, AlignBottom, Rows, Columns, CaretDown, Camera, FileVideo, ImageSquare } from '@phosphor-icons/react'
+import { Play, Stop, DownloadSimple, Plus, SquaresFour, Stack, Trash, DotsSixVertical, AlignLeft, AlignCenterHorizontal, AlignRight, AlignTop, AlignCenterVertical, AlignBottom, Rows, Columns, CaretDown, CaretUp, Camera, FileVideo, ImageSquare } from '@phosphor-icons/react'
 import * as Mp4Muxer from 'mp4-muxer'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 // GIF encoder loaded lazily on first use
@@ -164,7 +164,7 @@ function EasingCurve({ id, size = 'small', active = false }) {
   const w = isSmall ? 32 : 48
   const h = isSmall ? 20 : 48
   const pad = isSmall ? 3 : 8
-  const strokeColor = active ? '#fff' : (isSmall ? '#3b82f6' : 'rgba(255,255,255,0.55)')
+  const strokeColor = active ? '#fff' : (isSmall ? '#8f52ff' : 'rgba(255,255,255,0.55)')
 
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="easing-curve-svg">
@@ -277,37 +277,156 @@ function getNoiseTileUrl() {
   return _noiseTileUrl
 }
 
+// Ordered 4x4 Bayer dither tile — overlay-blended for a retro screen-door texture
+let _ditherTile = null
+let _ditherTileUrl = null
+function getDitherTile() {
+  if (_ditherTile) return _ditherTile
+  const bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+  const cell = 3
+  const size = 4 * cell
+  const tile = document.createElement('canvas')
+  tile.width = size
+  tile.height = size
+  const tctx = tile.getContext('2d')
+  for (let y = 0; y < 4; y++) {
+    for (let x = 0; x < 4; x++) {
+      const v = Math.round(((bayer[y][x] + 0.5) / 16) * 255)
+      tctx.fillStyle = `rgb(${v},${v},${v})`
+      tctx.fillRect(x * cell, y * cell, cell, cell)
+    }
+  }
+  _ditherTile = tile
+  _ditherTileUrl = tile.toDataURL('image/png')
+  return tile
+}
+function getDitherTileUrl() {
+  getDitherTile()
+  return _ditherTileUrl
+}
+
+// Horizontal scanline tile — 2px dark line every 4px
+let _scanTile = null
+let _scanTileUrl = null
+function getScanlineTile() {
+  if (_scanTile) return _scanTile
+  const tile = document.createElement('canvas')
+  tile.width = 4
+  tile.height = 4
+  const tctx = tile.getContext('2d')
+  tctx.fillStyle = '#000'
+  tctx.fillRect(0, 0, 4, 2)
+  _scanTile = tile
+  _scanTileUrl = tile.toDataURL('image/png')
+  return tile
+}
+function getScanlineTileUrl() {
+  getScanlineTile()
+  return _scanTileUrl
+}
+
 const rc = (f) => `/wallpapers/raycast/${f}.webp`
 const rs = (f) => `/wallpapers/resend/${f}.webp`
-const WALLPAPER_PRESETS = [
-  // Distortion
-  { name: 'Glaze 1', url: rc('glaze_1') },
-  { name: 'Glaze 2', url: rc('glaze_2') },
-  { name: 'Red Distortion 1', url: rc('red_distortion_1') },
-  { name: 'Red Distortion 2', url: rc('red_distortion_2') },
-  { name: 'Red Distortion 3', url: rc('red_distortion_3') },
-  { name: 'Red Distortion 4', url: rc('red_distortion_4') },
-  { name: 'Blue Distortion 1', url: rc('blue_distortion_1') },
-  { name: 'Blue Distortion 2', url: rc('blue_distortion_2') },
-  { name: 'Mono Dark', url: rc('mono_dark_distortion_1') },
-  { name: 'Mono Light', url: rc('mono_light_distortion_1') },
-  // Chromatic
-  { name: 'Chromatic Dark', url: rc('chromatic_dark_1') },
-  { name: 'Chromatic Light', url: rc('chromatic_light_1') },
-  // 3D
-  { name: 'Cube', url: rc('cube_prod') },
-  { name: 'Cube Mono', url: rc('cube_mono') },
-  { name: 'Loupe', url: rc('loupe') },
-  { name: 'Loupe Dark', url: rc('loupe-mono-dark') },
-  { name: 'Blob Red', url: rc('blob-red') },
-  // Resend
-  ...['1-a','1-b','1-c','2-a','2-b','2-c','3-a','3-b','3-c','4-a','4-b','4-c','5-a','5-b','5-c','6-a','6-b','6-c','7-a','7-b','7-c','8-a','8-b','8-c'].map(id => ({
+const nt = (f) => `/wallpapers/nature/${f}.webp`
+const ae = (f) => `/wallpapers/aero/${f}.webp`
+const WALLPAPER_GROUPS = {
+  // Soft 3D renders from Unsplash (unsplash.com/license — free for commercial use)
+  'Aero': [
+    { name: 'Purple Silk', url: ae('purple-silk') },
+    { name: 'Blue Waves', url: ae('blue-waves') },
+    { name: 'Dark Flow', url: ae('dark-flow') },
+    { name: 'Pastel Spheres', url: ae('pastel-spheres') },
+    { name: 'Peach Aura', url: ae('peach-aura') },
+    { name: 'Magenta Blur', url: ae('magenta-blur') },
+    { name: 'Sunset Fade', url: ae('sunset-fade') },
+    { name: 'Rainbow Soft', url: ae('rainbow-soft') },
+    { name: 'Violet Fade', url: ae('violet-fade') },
+    { name: 'Teal Ribbon', url: ae('teal-ribbon') },
+    { name: 'Lilac Ribbon', url: ae('lilac-ribbon') },
+    { name: 'Holo Soft', url: ae('holo-soft') },
+    { name: 'Glass Petals', url: ae('glass-petals') },
+    { name: 'Violet Mesh', url: ae('violet-mesh') },
+    { name: 'Grain Violet', url: ae('grain-violet') },
+    { name: 'Cream Soft', url: ae('cream-soft') },
+    { name: 'Ink Clouds', url: ae('ink-clouds') },
+    { name: 'Dark Paint', url: ae('dark-paint') },
+  ],
+  // Minimal nature photos from Unsplash (unsplash.com/license — free for commercial use)
+  'Nature': [
+    { name: 'Misty Mountains', url: nt('misty-mountains') },
+    { name: 'Starry Peaks', url: nt('starry-peaks') },
+    { name: 'Night Sky', url: nt('night-sky') },
+    { name: 'Sea Horizon', url: nt('sea-horizon') },
+    { name: 'Ocean Beach', url: nt('ocean-beach') },
+    { name: 'Dusk Sea', url: nt('dusk-sea') },
+    { name: 'Teal Shore', url: nt('teal-shore') },
+    { name: 'Green Hills', url: nt('green-hills') },
+    { name: 'Foggy Peaks', url: nt('foggy-peaks') },
+    { name: 'Crimson Peaks', url: nt('crimson-peaks') },
+  ],
+  'Abstract': [
+    { name: 'Glaze 1', url: rc('glaze_1') },
+    { name: 'Glaze 2', url: rc('glaze_2') },
+    { name: 'Red Distortion 1', url: rc('red_distortion_1') },
+    { name: 'Red Distortion 2', url: rc('red_distortion_2') },
+    { name: 'Red Distortion 3', url: rc('red_distortion_3') },
+    { name: 'Red Distortion 4', url: rc('red_distortion_4') },
+    { name: 'Blue Distortion 1', url: rc('blue_distortion_1') },
+    { name: 'Blue Distortion 2', url: rc('blue_distortion_2') },
+    { name: 'Mono Dark', url: rc('mono_dark_distortion_1') },
+    { name: 'Mono Light', url: rc('mono_light_distortion_1') },
+    { name: 'Chromatic Dark', url: rc('chromatic_dark_1') },
+    { name: 'Chromatic Light', url: rc('chromatic_light_1') },
+    { name: 'Cube', url: rc('cube_prod') },
+    { name: 'Cube Mono', url: rc('cube_mono') },
+    { name: 'Loupe', url: rc('loupe') },
+    { name: 'Loupe Dark', url: rc('loupe-mono-dark') },
+    { name: 'Blob Red', url: rc('blob-red') },
+  ],
+  'Gradient Art': ['1-a','1-b','1-c','2-a','2-b','2-c','3-a','3-b','3-c','4-a','4-b','4-c','5-a','5-b','5-c','6-a','6-b','6-c','7-a','7-b','7-c','8-a','8-b','8-c'].map(id => ({
     name: `Resend ${id}`, url: rs(id),
   })),
-]
+}
 
 const BG_PRESETS = {
   'Gradients': [
+    // Curated from uiGradients (MIT — github.com/ghosh/uiGradients)
+    'linear-gradient(135deg, #12c2e9, #c471ed, #f64f59)',
+    'linear-gradient(135deg, #8A2387, #E94057, #F27121)',
+    'linear-gradient(135deg, #FC466B, #3F5EFB)',
+    'linear-gradient(135deg, #7F00FF, #E100FF)',
+    'linear-gradient(135deg, #ef32d9, #89fffd)',
+    'linear-gradient(135deg, #11998e, #38ef7d)',
+    'linear-gradient(135deg, #f12711, #f5af19)',
+    'linear-gradient(135deg, #FF416C, #FF4B2B)',
+    'linear-gradient(135deg, #fc00ff, #00dbde)',
+    'linear-gradient(135deg, #C33764, #1D2671)',
+    'linear-gradient(135deg, #3A1C71, #D76D77, #FFAF7B)',
+    'linear-gradient(135deg, #03001e, #7303c0, #ec38bc, #fdeff9)',
+    'linear-gradient(135deg, #0f0c29, #302b63, #24243e)',
+    'linear-gradient(135deg, #8360c3, #2ebf91)',
+    'linear-gradient(135deg, #FDC830, #F37335)',
+    'linear-gradient(135deg, #C6FFDD, #FBD786, #f7797d)',
+    'linear-gradient(135deg, #654ea3, #eaafc8)',
+    'linear-gradient(135deg, #00B4DB, #0083B0)',
+    'linear-gradient(135deg, #ffe259, #ffa751)',
+    'linear-gradient(135deg, #667eea, #764ba2)',
+    // Curated from WebGradients (free — webgradients.com by itmeo)
+    'linear-gradient(120deg, #a1c4fd, #c2e9fb)',
+    'linear-gradient(120deg, #a18cd1, #fbc2eb)',
+    'linear-gradient(120deg, #ffecd2, #fcb69f)',
+    'linear-gradient(120deg, #fbc2eb, #a6c1ee)',
+    'linear-gradient(120deg, #f6d365, #fda085)',
+    'linear-gradient(120deg, #d4fc79, #96e6a1)',
+    'linear-gradient(120deg, #84fab0, #8fd3f4)',
+    'linear-gradient(120deg, #a6c0fe, #f68084)',
+    'linear-gradient(120deg, #fccb90, #d57eeb)',
+    'linear-gradient(120deg, #4facfe, #00f2fe)',
+    'linear-gradient(120deg, #f093fb, #f5576c)',
+    'linear-gradient(120deg, #13547a, #80d0c7)',
+    'linear-gradient(120deg, #89f7fe, #66a6ff)',
+    'linear-gradient(120deg, #48c6ef, #6f86d6)',
+    'linear-gradient(120deg, #e0c3fc, #8ec5fc)',
     // Muted vibrant
     'linear-gradient(135deg, #c4475a, #d4616e)',
     'linear-gradient(135deg, #556bb8, #654a8c)',
@@ -343,8 +462,12 @@ const BG_PRESETS = {
     'linear-gradient(to right, #cc6c64, #8c2448)',
     'linear-gradient(120deg, #a8cc64, #7cbc84)',
     'linear-gradient(to top, #d4b8ac, #d8b4d8)',
-  ],
-  'Mesh': [
+    // Mesh
+    'radial-gradient(at 15% 15%, #7c3aed 0%, transparent 55%), radial-gradient(at 85% 25%, #22d3ee 0%, transparent 55%), radial-gradient(at 50% 100%, #f0abfc 0%, transparent 60%), #07070f',
+    'radial-gradient(at 0% 30%, #34d399 0%, transparent 50%), radial-gradient(at 90% 10%, #38bdf8 0%, transparent 55%), radial-gradient(at 60% 100%, #818cf8 0%, transparent 55%), #05080f',
+    'radial-gradient(at 20% 0%, #fb7185 0%, transparent 55%), radial-gradient(at 100% 40%, #fbbf24 0%, transparent 55%), radial-gradient(at 30% 100%, #c084fc 0%, transparent 55%), #0d0710',
+    'radial-gradient(at 30% 20%, #fda4af 0%, transparent 55%), radial-gradient(at 80% 0%, #fcd34d 0%, transparent 50%), radial-gradient(at 70% 90%, #a5b4fc 0%, transparent 55%), #fdf6f0',
+    'radial-gradient(at 10% 90%, #67e8f9 0%, transparent 55%), radial-gradient(at 90% 80%, #c4b5fd 0%, transparent 55%), radial-gradient(at 50% 0%, #f9a8d4 0%, transparent 55%), #f4f7fd',
     'radial-gradient(at 40% 20%, #e73c7e 0%, transparent 50%), radial-gradient(at 80% 0%, #ee7752 0%, transparent 50%), radial-gradient(at 0% 50%, #23a6d5 0%, transparent 50%), radial-gradient(at 80% 80%, #23d5ab 0%, transparent 50%), #0f0f0f',
     'radial-gradient(at 0% 0%, #7928ca 0%, transparent 50%), radial-gradient(at 100% 0%, #ff0080 0%, transparent 50%), radial-gradient(at 100% 100%, #ff4d4d 0%, transparent 50%), radial-gradient(at 0% 100%, #0070f3 0%, transparent 50%), #0a0a0a',
     'radial-gradient(at 20% 80%, #fbc2eb 0%, transparent 50%), radial-gradient(at 80% 20%, #a6c1ee 0%, transparent 50%), radial-gradient(at 50% 50%, #fad0c4 0%, transparent 50%), #1a1a2e',
@@ -355,8 +478,7 @@ const BG_PRESETS = {
     'radial-gradient(at 0% 50%, #8b5cf6 0%, transparent 50%), radial-gradient(at 100% 0%, #06b6d4 0%, transparent 50%), radial-gradient(at 80% 100%, #ec4899 0%, transparent 50%), #0c0c14',
     'radial-gradient(at 40% 0%, #3b82f6 0%, transparent 50%), radial-gradient(at 100% 100%, #8b5cf6 0%, transparent 50%), radial-gradient(at 0% 80%, #06b6d4 0%, transparent 50%), #050510',
     'radial-gradient(at 80% 20%, #f43f5e 0%, transparent 50%), radial-gradient(at 0% 80%, #a855f7 0%, transparent 50%), radial-gradient(at 50% 50%, #3b82f6 0%, transparent 50%), #0a0a12',
-  ],
-  'Dark': [
+    // Dark
     'linear-gradient(135deg, #0f0f0f, #1a1a2e)',
     'linear-gradient(135deg, #16222a, #3a6073)',
     'linear-gradient(135deg, #141e30, #243b55)',
@@ -367,6 +489,21 @@ const BG_PRESETS = {
     'linear-gradient(135deg, #506853, #213223)',
     'linear-gradient(140deg, #333, #181818)',
     'linear-gradient(135deg, #08203e, #557c93)',
+  ],
+  // Soft blurred-blob "aura" gradients, hand-built in CSS
+  'Aura': [
+    'radial-gradient(ellipse 80% 60% at 50% 115%, #3634de 0%, rgba(54,52,222,0.5) 50%, rgba(228,228,238,0) 80%), linear-gradient(180deg, #ececf2, #d8d8e2)',
+    'radial-gradient(ellipse 75% 55% at 50% 112%, #7c5cff 0%, rgba(124,92,255,0.45) 50%, rgba(245,242,255,0) 80%), linear-gradient(180deg, #f4f1fb, #e6e0f4)',
+    'radial-gradient(circle at 50% 70%, #ff7a59 0%, rgba(255,122,89,0.55) 30%, rgba(255,238,230,0) 65%), radial-gradient(circle at 50% 45%, #ff4f8b 0%, rgba(255,79,139,0.35) 40%, rgba(255,240,244,0) 75%), linear-gradient(180deg, #ffeef0, #ffe2d8)',
+    'radial-gradient(ellipse 70% 55% at 50% 110%, #22b573 0%, rgba(34,181,115,0.4) 55%, rgba(238,247,240,0) 82%), linear-gradient(180deg, #eff7f1, #dcece1)',
+    'radial-gradient(ellipse 85% 60% at 50% 118%, #ff9d5c 0%, rgba(255,157,92,0.5) 50%, rgba(255,244,234,0) 80%), linear-gradient(180deg, #fff3e8, #ffe4cc)',
+    'radial-gradient(circle at 50% -20%, #4f8bff 0%, rgba(79,139,255,0.4) 45%, rgba(238,244,255,0) 75%), linear-gradient(180deg, #eef4ff, #dfe9fb)',
+    'radial-gradient(circle at 30% 80%, #c4a5f5 0%, rgba(196,165,245,0.4) 40%, rgba(248,245,255,0) 72%), radial-gradient(circle at 75% 25%, #93b8f8 0%, rgba(147,184,248,0.35) 38%, rgba(248,245,255,0) 70%), linear-gradient(180deg, #f6f3fd, #ebe6f8)',
+    'radial-gradient(circle at 25% 30%, #ff8fb3 0%, rgba(255,143,179,0.45) 30%, rgba(255,247,250,0) 60%), radial-gradient(circle at 75% 75%, #ff6584 0%, rgba(255,101,132,0.4) 35%, rgba(255,247,250,0) 68%), linear-gradient(180deg, #fff5f8, #ffe9ef)',
+    'radial-gradient(circle at 70% 85%, #37d6c3 0%, rgba(55,214,195,0.45) 40%, rgba(240,252,250,0) 72%), radial-gradient(circle at 25% 20%, #7ee8a2 0%, rgba(126,232,162,0.35) 35%, rgba(240,252,250,0) 68%), linear-gradient(180deg, #f0fbf8, #ddf2ec)',
+    'radial-gradient(ellipse 70% 60% at 15% 110%, #e8a33d 0%, rgba(232,163,61,0.5) 40%, rgba(24,22,18,0) 75%), linear-gradient(180deg, #201d18, #191713)',
+    'radial-gradient(ellipse 80% 60% at 50% 120%, #4338ca 0%, rgba(67,56,202,0.5) 45%, rgba(10,10,20,0) 78%), linear-gradient(180deg, #101018, #0a0a12)',
+    'radial-gradient(circle at 80% 90%, #d946ef 0%, rgba(217,70,239,0.4) 35%, rgba(16,10,18,0) 70%), radial-gradient(circle at 20% 100%, #7c3aed 0%, rgba(124,58,237,0.45) 40%, rgba(16,10,18,0) 72%), linear-gradient(180deg, #14101a, #0d0a12)',
   ],
   'Solid': [
     '#ffffff', '#f5f5f5', '#e5e5e5', '#d4d4d4',
@@ -481,6 +618,9 @@ function App() {
   const [exportProgress, setExportProgress] = useState(null) // null = not exporting, { format, progress: 0-1, status }
   const [artboardBg, setArtboardBg] = useState(() => loadSession('artboardBg', '#ffffff'))
   const [noise, setNoise] = useState(() => loadSession('noise', 0))
+  const [dither, setDither] = useState(() => loadSession('dither', 0))
+  const [scanlines, setScanlines] = useState(() => loadSession('scanlines', 0))
+  const [vignette, setVignette] = useState(() => loadSession('vignette', 0))
   const [expandedBgGroups, setExpandedBgGroups] = useState([])
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
   const [autoFitDuration, setAutoFitDuration] = useState(true)
@@ -534,7 +674,10 @@ function App() {
     sessionStorage.setItem('animate_duration', JSON.stringify(duration))
     sessionStorage.setItem('animate_artboardBg', JSON.stringify(artboardBg))
     sessionStorage.setItem('animate_noise', JSON.stringify(noise))
-  }, [format, artboardWidth, artboardHeight, duration, artboardBg, noise])
+    sessionStorage.setItem('animate_dither', JSON.stringify(dither))
+    sessionStorage.setItem('animate_scanlines', JSON.stringify(scanlines))
+    sessionStorage.setItem('animate_vignette', JSON.stringify(vignette))
+  }, [format, artboardWidth, artboardHeight, duration, artboardBg, noise, dither, scanlines, vignette])
 
   // Persist images to IndexedDB (handles large data)
   useEffect(() => {
@@ -613,15 +756,15 @@ function App() {
         return
       }
 
-      // Cmd++ / Cmd+= = zoom in, Cmd+- = zoom out
+      // Cmd++ / Cmd+= = zoom in, Cmd+- = zoom out (anchored at canvas center)
       if ((e.metaKey || e.ctrlKey) && (e.key === '=' || e.key === '+')) {
         e.preventDefault()
-        setCanvasZoom((prev) => Math.min(8, (prev !== null ? prev : getAutoFitScale()) * 1.25))
+        zoomBy(1.25)
         return
       }
       if ((e.metaKey || e.ctrlKey) && e.key === '-') {
         e.preventDefault()
-        setCanvasZoom((prev) => Math.max(0.05, (prev !== null ? prev : getAutoFitScale()) * 0.8))
+        zoomBy(0.8)
         return
       }
 
@@ -1035,6 +1178,39 @@ function App() {
     return canvasZoom !== null ? canvasZoom : getAutoFitScale()
   }
 
+  // At auto-fit the content is flex-centered while pan state is (0,0);
+  // this returns the pan that matches what's actually on screen.
+  const getEffectivePan = (rect, zoom) => {
+    if (canvasZoom !== null) return canvasPan
+    return {
+      x: (rect.width - artboardWidth * zoom) / 2,
+      y: (rect.height - artboardHeight * zoom) / 2,
+    }
+  }
+
+  const zoomAtPoint = (targetZoom, anchorX, anchorY) => {
+    const el = canvasAreaRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const currentZoom = canvasZoom !== null ? canvasZoom : getAutoFitScale()
+    const basePan = getEffectivePan(rect, currentZoom)
+    const newZoom = Math.min(8, Math.max(0.05, targetZoom))
+    const scaleChange = newZoom / currentZoom
+    setCanvasZoom(newZoom)
+    setCanvasPan({
+      x: anchorX - scaleChange * (anchorX - basePan.x),
+      y: anchorY - scaleChange * (anchorY - basePan.y),
+    })
+  }
+
+  const zoomBy = (factor) => {
+    const el = canvasAreaRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const currentZoom = canvasZoom !== null ? canvasZoom : getAutoFitScale()
+    zoomAtPoint(currentZoom * factor, rect.width / 2, rect.height / 2)
+  }
+
   const zoomToFit = () => {
     setCanvasZoom(null)
     setCanvasPan({ x: 0, y: 0 })
@@ -1059,28 +1235,26 @@ function App() {
         const cursorX = e.clientX - rect.left
         const cursorY = e.clientY - rect.top
 
+        const basePan = getEffectivePan(rect, currentZoom)
         const scaleChange = newZoom / currentZoom
-        const newPanX = cursorX - scaleChange * (cursorX - canvasPan.x)
-        const newPanY = cursorY - scaleChange * (cursorY - canvasPan.y)
+        const newPanX = cursorX - scaleChange * (cursorX - basePan.x)
+        const newPanY = cursorY - scaleChange * (cursorY - basePan.y)
 
         setCanvasZoom(newZoom)
         setCanvasPan({ x: newPanX, y: newPanY })
       } else {
-        // Pan with scroll
+        // Pan with scroll — only useful when zoomed in past fit
         e.preventDefault()
+        if (canvasZoom === null || canvasZoom <= getAutoFitScale()) return
         setCanvasPan((prev) => ({
           x: prev.x - e.deltaX,
           y: prev.y - e.deltaY,
         }))
-        // Switch from auto-fit to manual if still on auto
-        if (canvasZoom === null) {
-          setCanvasZoom(getAutoFitScale())
-        }
       }
     }
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
-  }, [canvasZoom, artboardWidth, artboardHeight])
+  }, [canvasZoom, canvasPan, artboardWidth, artboardHeight])
 
   // Space key for pan mode
   useEffect(() => {
@@ -1103,12 +1277,14 @@ function App() {
     }
   }, [])
 
-  // Pan with middle mouse or space+drag
+  // Pan with middle mouse or space+drag — only when zoomed in past fit
+  const canPan = canvasZoom !== null && canvasZoom > getAutoFitScale()
+
   const handleCanvasPanStart = (e) => {
+    if (!canPan) return
     if (e.button === 1 || (spaceHeld && e.button === 0)) {
       e.preventDefault()
       setIsPanning(true)
-      if (canvasZoom === null) setCanvasZoom(getAutoFitScale())
       panStart.current = { x: e.clientX - canvasPan.x, y: e.clientY - canvasPan.y }
     }
   }
@@ -1536,11 +1712,23 @@ function App() {
         return bgCanvas
       }
     } else if (artboardBg.includes('gradient')) {
-      // Parse CSS linear-gradient and render natively to avoid canvas taint
       const bgCanvas = document.createElement('canvas')
       bgCanvas.width = w
       bgCanvas.height = h
       const bgCtx = bgCanvas.getContext('2d')
+      // Rasterize the exact CSS (multi-layer radial/linear gradients) via SVG foreignObject —
+      // data: URL with no external refs, so the canvas stays untainted
+      const esc = artboardBg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml" style="width:${w}px;height:${h}px;background:${esc}"></div></foreignObject></svg>`
+      const svgImg = new Image()
+      await new Promise((resolve) => { svgImg.onload = resolve; svgImg.onerror = resolve; svgImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) })
+      if (svgImg.naturalWidth > 0) {
+        try {
+          bgCtx.drawImage(svgImg, 0, 0, w, h)
+          return bgCanvas
+        } catch { /* fall through to linear approximation */ }
+      }
+      // Fallback: approximate as a simple linear gradient
       const angleMatch = artboardBg.match(/(\d+)deg/)
       const angle = angleMatch ? +angleMatch[1] : 135
       const colors = artboardBg.match(/#[0-9a-fA-F]{3,8}/g) || ['#000000', '#000000']
@@ -1750,6 +1938,40 @@ function App() {
       ctx.globalAlpha = (noise / 100) * 0.5
       const pattern = ctx.createPattern(tile, 'repeat')
       ctx.fillStyle = pattern
+      ctx.fillRect(0, 0, w, h)
+      ctx.restore()
+    }
+
+    if (dither > 0) {
+      const tile = getDitherTile()
+      ctx.save()
+      ctx.globalAlpha = dither / 100
+      ctx.globalCompositeOperation = 'overlay'
+      const pattern = ctx.createPattern(tile, 'repeat')
+      ctx.fillStyle = pattern
+      ctx.fillRect(0, 0, w, h)
+      ctx.restore()
+    }
+
+    if (scanlines > 0) {
+      const tile = getScanlineTile()
+      ctx.save()
+      ctx.globalAlpha = (scanlines / 100) * 0.55
+      const pattern = ctx.createPattern(tile, 'repeat')
+      ctx.fillStyle = pattern
+      ctx.fillRect(0, 0, w, h)
+      ctx.restore()
+    }
+
+    if (vignette > 0) {
+      ctx.save()
+      const cx = w / 2
+      const cy = h / 2
+      const outer = Math.sqrt(cx * cx + cy * cy)
+      const grad = ctx.createRadialGradient(cx, cy, outer * 0.45, cx, cy, outer)
+      grad.addColorStop(0, 'rgba(0,0,0,0)')
+      grad.addColorStop(1, `rgba(0,0,0,${(vignette / 100) * 0.85})`)
+      ctx.fillStyle = grad
       ctx.fillRect(0, 0, w, h)
       ctx.restore()
     }
@@ -1993,7 +2215,7 @@ function App() {
           ) : (
             <button className="btn-play" onClick={() => playAnimation(playbackTime === 0 || playbackTime >= duration)}><Play size={14} weight="fill" /> Play</button>
           )}
-          <button className="btn-icon" onClick={() => captureFrame('png')} title="Capture current frame as PNG"><Camera size={16} /></button>
+          <button className="btn-icon" onClick={() => captureFrame('png')} title="Capture current frame as PNG"><Camera size={18} weight="fill" /></button>
           <div className="btn-export-split">
             <button className="btn-export" onClick={() => exportAnimation(30)}><DownloadSimple size={14} weight="bold" /> Export</button>
             <DropdownMenu.Root>
@@ -2038,14 +2260,18 @@ function App() {
             <div className="layers-header">
               <h3>Layers</h3>
               <div className="layers-actions">
-                <button className="btn-add-small" onClick={() => setSelectedIds(images.map((img) => img.id))} title="Select all"><SquaresFour size={16} /></button>
+                <button className="btn-add-small" onClick={() => setSelectedIds(images.map((img) => img.id))} title="Select all"><SquaresFour size={16} weight="fill" /></button>
                 <button className="btn-add-small" onClick={() => fileInputRef.current?.click()} title="Add images"><Plus size={16} weight="bold" /></button>
               </div>
               <input ref={fileInputRef} type="file" accept="image/*,video/mp4" multiple hidden onChange={handleImageUpload} />
             </div>
             {renderLayersList()}
             {images.length === 0 && (
-              <p className="hint">Drop images or videos (mp4) here<br/>or click + to add</p>
+              <button className="drop-card" onClick={() => fileInputRef.current?.click()}>
+                <span className="drop-card-tile"><Plus size={22} weight="bold" /></span>
+                <span className="drop-card-title">Drop or Paste</span>
+                <span className="drop-card-sub">Images & Videos</span>
+              </button>
             )}
             {selectedIds.length > 0 && (
               <div className="selection-info">{selectedIds.length} selected</div>
@@ -2056,7 +2282,7 @@ function App() {
         {/* Canvas */}
         <div
           ref={canvasAreaRef}
-          className={`canvas-area ${canvasDragOver ? 'drag-over' : ''} ${isPanning || spaceHeld ? 'panning' : ''}`}
+          className={`canvas-area ${canvasDragOver ? 'drag-over' : ''} ${isPanning || (spaceHeld && canPan) ? 'panning' : ''}`}
           onMouseDown={(e) => {
             handleCanvasPanStart(e)
             if (!spaceHeld && e.button === 0 && (e.target === e.currentTarget || (e.target.closest('.artboard') && !e.target.closest('.artboard-image')))) {
@@ -2187,6 +2413,41 @@ function App() {
                     backgroundImage: `url(${getNoiseTileUrl()})`,
                     backgroundRepeat: 'repeat',
                     opacity: (noise / 100) * 0.5,
+                  }}
+                />
+              )}
+              {dither > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    backgroundImage: `url(${getDitherTileUrl()})`,
+                    backgroundRepeat: 'repeat',
+                    opacity: dither / 100,
+                    mixBlendMode: 'overlay',
+                  }}
+                />
+              )}
+              {scanlines > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    backgroundImage: `url(${getScanlineTileUrl()})`,
+                    backgroundRepeat: 'repeat',
+                    opacity: (scanlines / 100) * 0.55,
+                  }}
+                />
+              )}
+              {vignette > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    background: `radial-gradient(circle, rgba(0,0,0,0) 45%, rgba(0,0,0,${(vignette / 100) * 0.85}) 100%)`,
                   }}
                 />
               )}
@@ -2326,23 +2587,15 @@ function App() {
                     </>)}
                   </div>
                   {Object.entries(BG_PRESETS).map(([group, presets]) => {
-                    const isSolid = group === 'Solid'
-                    const cols = isSolid ? 8 : 5
-                    const maxCollapsed = cols * 2
-                    const needsExpand = presets.length > maxCollapsed
+                    const needsExpand = presets.length > 8
                     const isExpanded = expandedBgGroups.includes(group)
-                    const shown = isExpanded ? presets : presets.slice(0, maxCollapsed)
+                    const shown = isExpanded || !needsExpand ? presets : presets.slice(0, 7)
                     return (
                       <div key={group} className="bg-group">
                         <div className="bg-group-header">
                           <span className="bg-group-label">{group}</span>
-                          {needsExpand && (
-                            <button className="bg-expand-btn" onClick={() => setExpandedBgGroups((prev) => prev.includes(group) ? prev.filter((g) => g !== group) : [...prev, group])}>
-                              {isExpanded ? 'Less' : 'More'}
-                            </button>
-                          )}
                         </div>
-                        <div className={`bg-grid ${isSolid ? 'bg-grid-solid' : ''}`}>
+                        <div className="bg-grid">
                           {shown.map((bg, i) => (
                             <button
                               key={i}
@@ -2351,32 +2604,52 @@ function App() {
                               onClick={() => setArtboardBg(bg)}
                             />
                           ))}
+                          {needsExpand && (
+                            <button
+                              className="bg-swatch bg-expand-tile"
+                              onClick={() => setExpandedBgGroups((prev) => isExpanded ? prev.filter((g) => g !== group) : [...prev, group])}
+                              title={isExpanded ? 'Show less' : 'Show all'}
+                            >
+                              {isExpanded ? <CaretUp size={16} weight="bold" /> : <CaretDown size={16} weight="bold" />}
+                            </button>
+                          )}
                         </div>
                       </div>
                     )
                   })}
-                  <div className="bg-group">
-                    <div className="bg-group-header">
-                      <span className="bg-group-label">Wallpapers</span>
-                      {WALLPAPER_PRESETS.length > 10 && !expandedBgGroups.includes('Wallpapers') && (
-                        <button className="bg-expand-btn" onClick={() => setExpandedBgGroups((prev) => [...prev, 'Wallpapers'])}>More</button>
-                      )}
-                      {expandedBgGroups.includes('Wallpapers') && (
-                        <button className="bg-expand-btn" onClick={() => setExpandedBgGroups((prev) => prev.filter((g) => g !== 'Wallpapers'))}>Less</button>
-                      )}
-                    </div>
-                    <div className="bg-grid">
-                      {(expandedBgGroups.includes('Wallpapers') ? WALLPAPER_PRESETS : WALLPAPER_PRESETS.slice(0, 10)).map((wp, i) => (
-                        <button
-                          key={i}
-                          className={`bg-swatch bg-swatch-img ${artboardBg === `url(${wp.url}) center/cover` ? 'active' : ''}`}
-                          style={{ backgroundImage: `url(${wp.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
-                          onClick={() => setArtboardBg(`url(${wp.url}) center/cover`)}
-                          title={wp.name}
-                        />
-                      ))}
-                    </div>
-                  </div>
+                  {Object.entries(WALLPAPER_GROUPS).map(([group, presets]) => {
+                    const groupKey = `wp-${group}`
+                    const needsExpand = presets.length > 8
+                    const isExpanded = expandedBgGroups.includes(groupKey)
+                    const shown = isExpanded || !needsExpand ? presets : presets.slice(0, 7)
+                    return (
+                      <div key={groupKey} className="bg-group">
+                        <div className="bg-group-header">
+                          <span className="bg-group-label">{group}</span>
+                        </div>
+                        <div className="bg-grid">
+                          {shown.map((wp, i) => (
+                            <button
+                              key={i}
+                              className={`bg-swatch bg-swatch-img ${artboardBg === `url(${wp.url}) center/cover` ? 'active' : ''}`}
+                              style={{ backgroundImage: `url(${wp.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+                              onClick={() => setArtboardBg(`url(${wp.url}) center/cover`)}
+                              title={wp.name}
+                            />
+                          ))}
+                          {needsExpand && (
+                            <button
+                              className="bg-swatch bg-expand-tile"
+                              onClick={() => setExpandedBgGroups((prev) => isExpanded ? prev.filter((g) => g !== groupKey) : [...prev, groupKey])}
+                              title={isExpanded ? 'Show less' : 'Show all'}
+                            >
+                              {isExpanded ? <CaretUp size={16} weight="bold" /> : <CaretDown size={16} weight="bold" />}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
                   <div className="bg-group">
                     <button className="bg-upload-btn" onClick={() => document.getElementById('bg-upload-input')?.click()}>
                       <Plus size={14} /> Upload image
@@ -2400,26 +2673,33 @@ function App() {
               </div>
               <div className="panel-section">
                 <h3>Effects</h3>
-                <div className="slider-field">
-                  <label>Noise</label>
-                  <div className="slider-field-row">
-                    <Slider
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={noise}
-                      onValueChange={setNoise}
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={noise}
-                      onChange={(e) => setNoise(Math.max(0, Math.min(100, +e.target.value)))}
-                      className="border-radius-number"
-                    />
+                {[
+                  { label: 'Noise', value: noise, set: setNoise },
+                  { label: 'Dither', value: dither, set: setDither },
+                  { label: 'Scanlines', value: scanlines, set: setScanlines },
+                  { label: 'Vignette', value: vignette, set: setVignette },
+                ].map(({ label, value, set }) => (
+                  <div className="slider-field" key={label}>
+                    <label>{label}</label>
+                    <div className="slider-field-row">
+                      <Slider
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={value}
+                        onValueChange={set}
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={value}
+                        onChange={(e) => set(Math.max(0, Math.min(100, +e.target.value)))}
+                        className="border-radius-number"
+                      />
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
             </>
           ) : activeTab === 'layers' ? (
