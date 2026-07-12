@@ -634,6 +634,7 @@ function App() {
   const [bgSaturation, setBgSaturation] = useState(() => loadSession('bgSaturation', 100))
   const [bgBlur, setBgBlur] = useState(() => loadSession('bgBlur', 0))
   const [edgePadding, setEdgePadding] = useState(0)
+  const [allRadius, setAllRadius] = useState(0)
   const [expandedBgGroups, setExpandedBgGroups] = useState([])
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
   const [autoFitDuration, setAutoFitDuration] = useState(true)
@@ -1492,21 +1493,23 @@ function App() {
   }
 
   // Proportional resize for multi-selected layers
-  // Fit selected images inside the artboard inset by `pad` on every edge,
-  // preserving aspect ratio and centering. Live updates during a slider drag
-  // push a single undo snapshot per gesture (reset via commitEdgePadding).
+  // Fit images inside the artboard inset by `pad` on every edge, preserving
+  // aspect ratio and centering. Targets the selection, or every image when
+  // nothing is selected. Live updates during a slider drag push a single
+  // undo snapshot per gesture (reset via commitEdgePadding).
   const edgePadUndoPushed = useRef(false)
   const fitSelectedWithPadding = (pad) => {
-    if (selectedIds.length === 0) return
     const availW = Math.max(20, artboardWidth - pad * 2)
     const availH = Math.max(20, artboardHeight - pad * 2)
     setImages((prev) => {
+      if (prev.length === 0) return prev
       if (!edgePadUndoPushed.current) {
         pushUndo(prev)
         edgePadUndoPushed.current = true
       }
+      const targetAll = selectedIds.length === 0
       return prev.map((img) => {
-        if (!selectedIds.includes(img.id)) return img
+        if (!targetAll && !selectedIds.includes(img.id)) return img
         const s = Math.min(availW / img.width, availH / img.height)
         const w = Math.round(img.width * s)
         const h = Math.round(img.height * s)
@@ -1521,6 +1524,25 @@ function App() {
     })
   }
   const commitEdgePadding = () => { edgePadUndoPushed.current = false }
+
+  // Border radius for all images (or the selection), same single-undo pattern
+  const radiusUndoPushed = useRef(false)
+  const setRadiusForTargets = (r) => {
+    setImages((prev) => {
+      if (prev.length === 0) return prev
+      if (!radiusUndoPushed.current) {
+        pushUndo(prev)
+        radiusUndoPushed.current = true
+      }
+      const targetAll = selectedIds.length === 0
+      return prev.map((img) =>
+        (targetAll || selectedIds.includes(img.id)) ? { ...img, borderRadius: r } : img
+      )
+    })
+  }
+  const commitAllRadius = () => { radiusUndoPushed.current = false }
+
+  const maxEdgePad = Math.max(0, Math.floor(Math.min(artboardWidth, artboardHeight) / 2) - 20)
 
   const resizeSelectedProportionally = (targetWidth) => {
     if (selectedIds.length === 0 || !targetWidth || targetWidth <= 0) return
@@ -3061,16 +3083,50 @@ function App() {
                       />
                     </div>
                   </div>
-                  {(() => {
-                    const maxPad = Math.max(0, Math.floor(Math.min(artboardWidth, artboardHeight) / 2) - 20)
-                    return (
-                      <div className="slider-field" style={{ marginTop: 10 }}>
-                        <label>Edge Padding</label>
-                        <p className="hint-small">Fits and centers selected images inside the artboard with this much space from the edges.</p>
+                  <div className="slider-field" style={{ marginTop: 10 }}>
+                    <label>Padding</label>
+                    <p className="hint-small">Fits and centers selected images inside the artboard with this much space from the edges.</p>
+                    <div className="slider-field-row">
+                      <Slider
+                        min={0}
+                        max={maxEdgePad}
+                        step={1}
+                        value={edgePadding}
+                        onValueChange={(v) => { setEdgePadding(v); fitSelectedWithPadding(v) }}
+                        onValueCommit={commitEdgePadding}
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        max={maxEdgePad}
+                        value={edgePadding}
+                        onChange={(e) => {
+                          const v = Math.max(0, Math.min(maxEdgePad, +e.target.value))
+                          setEdgePadding(v)
+                          fitSelectedWithPadding(v)
+                          commitEdgePadding()
+                        }}
+                        className="border-radius-number"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!selectedImage && !multiSelected && (
+                <div className="panel-section">
+                  <h3>All Layers{images.length > 0 ? ` (${images.length})` : ''}</h3>
+                  {images.length === 0 ? (
+                    <p className="hint">Add images to edit their layout</p>
+                  ) : (
+                    <>
+                      <p className="hint-small">Nothing selected — these apply to every image.</p>
+                      <div className="slider-field">
+                        <label>Padding</label>
                         <div className="slider-field-row">
                           <Slider
                             min={0}
-                            max={maxPad}
+                            max={maxEdgePad}
                             step={1}
                             value={edgePadding}
                             onValueChange={(v) => { setEdgePadding(v); fitSelectedWithPadding(v) }}
@@ -3079,10 +3135,10 @@ function App() {
                           <input
                             type="number"
                             min={0}
-                            max={maxPad}
+                            max={maxEdgePad}
                             value={edgePadding}
                             onChange={(e) => {
-                              const v = Math.max(0, Math.min(maxPad, +e.target.value))
+                              const v = Math.max(0, Math.min(maxEdgePad, +e.target.value))
                               setEdgePadding(v)
                               fitSelectedWithPadding(v)
                               commitEdgePadding()
@@ -3091,14 +3147,34 @@ function App() {
                           />
                         </div>
                       </div>
-                    )
-                  })()}
-                </div>
-              )}
-
-              {!selectedImage && !multiSelected && (
-                <div className="panel-section">
-                  <p className="hint">Select a layer to edit its properties</p>
+                      <div className="slider-field">
+                        <label>Radius</label>
+                        <div className="slider-field-row">
+                          <Slider
+                            min={0}
+                            max={200}
+                            step={1}
+                            value={allRadius}
+                            onValueChange={(v) => { setAllRadius(v); setRadiusForTargets(v) }}
+                            onValueCommit={commitAllRadius}
+                          />
+                          <input
+                            type="number"
+                            min={0}
+                            max={200}
+                            value={allRadius}
+                            onChange={(e) => {
+                              const v = Math.max(0, Math.min(200, +e.target.value))
+                              setAllRadius(v)
+                              setRadiusForTargets(v)
+                              commitAllRadius()
+                            }}
+                            className="border-radius-number"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </>
