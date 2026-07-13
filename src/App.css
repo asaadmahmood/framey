@@ -26,6 +26,7 @@
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
   --shadow-xl: 0 16px 48px rgba(0,0,0,0.6);
   --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /* ===== APP LAYOUT ===== */
@@ -82,7 +83,7 @@
   font-weight: 500;
   cursor: pointer;
   border-radius: 999px;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
   font-family: inherit;
   position: relative;
 }
@@ -145,7 +146,7 @@
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
   font-family: inherit;
   display: inline-flex;
   align-items: center;
@@ -187,7 +188,7 @@
   cursor: pointer;
   background: transparent;
   color: #0c0c0e;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
   font-family: inherit;
   display: inline-flex;
   align-items: center;
@@ -208,7 +209,7 @@
   cursor: pointer;
   display: flex;
   align-items: center;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .btn-export-caret:hover {
@@ -223,12 +224,13 @@
   padding: 6px;
   min-width: 180px;
   z-index: 200;
-  animation: dropdown-in 150ms ease;
+  animation: dropdown-in 160ms var(--ease-out);
+  transform-origin: top right;
 }
 
 @keyframes dropdown-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .export-dropdown-item {
@@ -242,7 +244,7 @@
   font-weight: 450;
   cursor: pointer;
   outline: none;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .export-dropdown-item:hover,
@@ -268,7 +270,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .btn-icon:hover {
@@ -343,7 +345,7 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .btn-add-small:hover {
@@ -685,7 +687,7 @@
   font-family: inherit;
   outline: none;
   box-sizing: border-box;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .field select:hover,
@@ -810,7 +812,7 @@
   font-family: inherit;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .easing-option:hover {
@@ -859,7 +861,7 @@
   height: 28px;
   border-radius: var(--radius-md);
   flex-shrink: 0;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .bg-picker-wrapper {
@@ -954,7 +956,7 @@
   font-family: inherit;
   font-weight: 500;
   padding: 3px 10px;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .bg-expand-btn:hover {
@@ -974,7 +976,7 @@
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
   position: relative;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07);
 }
@@ -1023,7 +1025,7 @@
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .bg-upload-btn:hover {
@@ -1060,7 +1062,7 @@
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
   white-space: nowrap;
 }
 
@@ -1081,7 +1083,7 @@
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
   margin-bottom: 8px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.3);
 }
@@ -1161,7 +1163,7 @@
   padding: 0;
   flex-shrink: 0;
   opacity: 0;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .image-item:hover .btn-remove {
@@ -1217,7 +1219,7 @@
   color: var(--text-secondary);
   border-radius: 16px;
   margin-bottom: 10px;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .drop-card:hover .drop-card-tile {
@@ -1310,7 +1312,7 @@
   height: 14px;
   background: rgba(255,255,255,0.4);
   border-radius: 50%;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .checkbox-label input[type="checkbox"]:checked {
@@ -1349,7 +1351,7 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .align-btn:hover {
@@ -1383,7 +1385,7 @@
   font-family: inherit;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .frame-style-btn:hover {
@@ -1522,7 +1524,7 @@
   height: 11px;
   border-radius: 50%;
   background: rgba(255,255,255,0.45);
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .mini-toggle input[type="checkbox"]:checked {
@@ -1584,7 +1586,7 @@
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), border-color var(--transition);
 }
 
 .btn-video-duration:hover {
@@ -1602,7 +1604,7 @@
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: overlay-in 200ms ease;
+  animation: overlay-in 200ms var(--ease-out);
 }
 
 @keyframes overlay-in {
@@ -1660,4 +1662,54 @@
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   font-weight: 500;
+}
+
+/* ===== MOTION POLISH ===== */
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.easing-popover,
+.bg-picker-popover {
+  animation: pop-in 150ms var(--ease-out);
+  transform-origin: top center;
+}
+
+/* Press feedback on pressables */
+.btn-play:active, .btn-stop:active, .btn-icon:active, .btn-add-small:active,
+.btn-primary:active, .btn-fit:active, .bg-expand-tile:active,
+.bg-upload-btn:active, .drop-card:active, .frame-style-btn:active,
+.align-btn:active, .easing-option:active, .bg-expand-btn:active {
+  transform: scale(0.97);
+}
+
+.btn-export:active, .btn-export-caret:active {
+  opacity: 0.75;
+}
+
+/* Touch devices: no hover-scale motion (taps fire false hovers) */
+@media (hover: none), (pointer: coarse) {
+  .bg-swatch:hover {
+    transform: none;
+  }
+}
+
+/* Reduced motion: keep color/opacity feedback, drop movement */
+@media (prefers-reduced-motion: reduce) {
+  .bg-swatch:hover,
+  .btn-play:active, .btn-stop:active, .btn-icon:active, .btn-add-small:active,
+  .btn-primary:active, .btn-fit:active, .bg-expand-tile:active,
+  .bg-upload-btn:active, .drop-card:active, .frame-style-btn:active,
+  .align-btn:active, .easing-option:active, .bg-expand-btn:active,
+  .align-slider-thumb:hover, .align-slider-thumb:active,
+  .scrubber-head:active {
+    transform: none;
+  }
+  .export-dropdown,
+  .easing-popover,
+  .bg-picker-popover,
+  .export-overlay {
+    animation-duration: 1ms;
+  }
 }

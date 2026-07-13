@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Play, Stop, DownloadSimple, Plus, SquaresFour, Stack, Trash, DotsSixVertical, AlignLeft, AlignCenterHorizontal, AlignRight, AlignTop, AlignCenterVertical, AlignBottom, Rows, Columns, CaretDown, CaretUp, Camera, FileVideo, ImageSquare } from '@phosphor-icons/react'
-import * as Mp4Muxer from 'mp4-muxer'
+import { Play, Stop, DownloadSimple, Plus, SquaresFour, Trash, AlignLeft, AlignCenterHorizontal, AlignRight, AlignTop, AlignCenterVertical, AlignBottom, Rows, Columns, CaretDown, CaretUp, Camera, FileVideo, ImageSquare } from '@phosphor-icons/react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 // GIF encoder loaded lazily on first use
 let GifEncoderModule = null
@@ -846,7 +845,7 @@ function App() {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [isPlaying, images, selectedIds, undo, redo])
+  }, [isPlaying, images, selectedIds, undo, redo, canvasZoom, canvasPan, playbackTime, duration])
 
   const handleFormatChange = (e) => {
     const f = e.target.value
@@ -870,11 +869,13 @@ function App() {
       sorted.map(
         (file) =>
           new Promise((resolve) => {
+            // Any decode/read failure resolves null so one bad file can't hang the batch
             if (file.type === 'video/mp4') {
               const videoUrl = URL.createObjectURL(file)
               const video = document.createElement('video')
               video.muted = true
               video.preload = 'metadata'
+              video.onerror = () => { URL.revokeObjectURL(videoUrl); resolve(null) }
               let detectedDuration = 0
               video.onloadedmetadata = () => {
                 detectedDuration = (video.duration && isFinite(video.duration)) ? video.duration : 0
@@ -888,6 +889,7 @@ function App() {
                 ctx.drawImage(video, 0, 0)
                 const poster = canvas.toDataURL('image/png')
                 const reader = new FileReader()
+                reader.onerror = () => { URL.revokeObjectURL(videoUrl); resolve(null) }
                 reader.onload = (ev) => {
                   resolve({
                     src: poster,
@@ -905,8 +907,10 @@ function App() {
               video.src = videoUrl
             } else {
               const reader = new FileReader()
+              reader.onerror = () => resolve(null)
               reader.onload = (ev) => {
                 const img = new Image()
+                img.onerror = () => resolve(null)
                 img.onload = () => {
                   resolve({
                     src: ev.target.result,
@@ -921,7 +925,9 @@ function App() {
             }
           })
       )
-    ).then((loaded) => {
+    ).then((results) => {
+      const loaded = results.filter(Boolean)
+      if (loaded.length === 0) return
       setImagesWithUndo((prev) => {
         const all = [
           ...prev,
@@ -1715,25 +1721,6 @@ function App() {
   }
 
   // Render CSS background (gradient or solid) to a canvas
-  const renderBgToCanvas = async (w, h) => {
-    const div = document.createElement('div')
-    div.style.cssText = `position:fixed;left:-9999px;width:${w}px;height:${h}px;background:${artboardBg}`
-    document.body.appendChild(div)
-    const bgCanvas = document.createElement('canvas')
-    bgCanvas.width = w
-    bgCanvas.height = h
-    const bgCtx = bgCanvas.getContext('2d')
-    // Use createImageBitmap from the div via foreignObject SVG
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml" style="width:${w}px;height:${h}px;background:${artboardBg.replace(/"/g, "'")}"></div></foreignObject></svg>`
-    const blob = new Blob([svg], { type: 'image/svg+xml' })
-    const url = URL.createObjectURL(blob)
-    const img = new Image()
-    await new Promise((resolve) => { img.onload = resolve; img.src = url })
-    bgCtx.drawImage(img, 0, 0)
-    URL.revokeObjectURL(url)
-    document.body.removeChild(div)
-    return bgCanvas
-  }
 
   // Load background to canvas without tainting (for export)
   // Load layers for export — images as Image, videos as Video elements
@@ -2089,34 +2076,63 @@ function App() {
   }
 
   const captureFrame = async (fmt = 'png', scale = 1) => {
-    const canvas = document.createElement('canvas')
-    canvas.width = artboardWidth * scale
-    canvas.height = artboardHeight * scale
-    const ctx = canvas.getContext('2d')
-    if (scale !== 1) ctx.scale(scale, scale)
+    let loadedImages = []
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = artboardWidth * scale
+      canvas.height = artboardHeight * scale
+      const ctx = canvas.getContext('2d')
+      if (scale !== 1) ctx.scale(scale, scale)
 
-    let bgCanvas = null
-    try { bgCanvas = await loadBgForExport(artboardWidth, artboardHeight) } catch {}
+      let bgCanvas = null
+      try { bgCanvas = await loadBgForExport(artboardWidth, artboardHeight) } catch { /* bg falls back to fillStyle */ }
 
-    const loadedImages = await loadLayersForExport()
-    await seekVideosForFrame(loadedImages, playbackTime)
+      loadedImages = await loadLayersForExport()
+      await seekVideosForFrame(loadedImages, playbackTime)
 
-    renderFrame(ctx, bgCanvas, loadedImages, playbackTime, artboardWidth, artboardHeight)
+      renderFrame(ctx, bgCanvas, loadedImages, playbackTime, artboardWidth, artboardHeight)
 
-    const mime = fmt === 'webp' ? 'image/webp' : 'image/png'
-    const ext = fmt === 'webp' ? 'webp' : 'png'
-    const suffix = scale !== 1 ? `@${scale}x` : ''
-    canvas.toBlob((blob) => {
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `frame-${playbackTime.toFixed(2)}s${suffix}.${ext}`
-      a.click()
-      URL.revokeObjectURL(url)
-    }, mime, fmt === 'webp' ? 0.95 : undefined)
+      const mime = fmt === 'webp' ? 'image/webp' : 'image/png'
+      const ext = fmt === 'webp' ? 'webp' : 'png'
+      const suffix = scale !== 1 ? `@${scale}x` : ''
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          setExportProgress({ format: fmt.toUpperCase(), progress: 0, status: 'Frame capture failed — the canvas may be too large for this browser.' })
+          setTimeout(() => setExportProgress(null), 5000)
+          return
+        }
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `frame-${playbackTime.toFixed(2)}s${suffix}.${ext}`
+        a.click()
+        URL.revokeObjectURL(url)
+      }, mime, fmt === 'webp' ? 0.95 : undefined)
+    } catch (err) {
+      console.error('Frame capture failed:', err)
+      setExportProgress({ format: fmt.toUpperCase(), progress: 0, status: `Frame capture failed: ${err?.message || err}` })
+      setTimeout(() => setExportProgress(null), 5000)
+    } finally {
+      releaseExportVideos(loadedImages)
+    }
+  }
+
+  // Release decoded <video> elements created for an export
+  const releaseExportVideos = (loadedImages) => {
+    for (const img of loadedImages || []) {
+      if (img?.isVideo && img.el?.tagName === 'VIDEO') {
+        try { img.el.pause(); img.el.src = ''; img.el.load() } catch { /* already released */ }
+      }
+    }
   }
 
   const exportAnimation = async (exportFps = 30) => {
+    if (typeof VideoEncoder === 'undefined') {
+      setExportProgress({ format: 'MP4', progress: 0, status: 'MP4 export needs a browser with WebCodecs (Chrome, Edge, or recent Safari). Try exporting a GIF instead.' })
+      setTimeout(() => setExportProgress(null), 5000)
+      return
+    }
+
     // H.264 requires even dimensions
     const w = artboardWidth % 2 === 0 ? artboardWidth : artboardWidth + 1
     const h = artboardHeight % 2 === 0 ? artboardHeight : artboardHeight + 1
@@ -2136,7 +2152,9 @@ function App() {
     let bgCanvas = null
     try { bgCanvas = await loadBgForExport(w, h) } catch (e) { console.warn('Bg render failed', e) }
 
+    let encoder = null
     try {
+      const Mp4Muxer = await import('mp4-muxer')
       const muxer = new Mp4Muxer.Muxer({
         target: new Mp4Muxer.ArrayBufferTarget(),
         video: {
@@ -2147,7 +2165,7 @@ function App() {
         fastStart: 'in-memory',
       })
 
-      const encoder = new VideoEncoder({
+      encoder = new VideoEncoder({
         output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
         error: (e) => console.error('Encoder error:', e),
       })
@@ -2192,11 +2210,15 @@ function App() {
       a.download = 'animation.mp4'
       a.click()
       URL.revokeObjectURL(url)
+      setTimeout(() => setExportProgress(null), 1000)
     } catch (err) {
       console.error('MP4 export failed:', err)
+      setExportProgress({ format: 'MP4', progress: 0, status: `Export failed: ${err?.message || err}` })
+      setTimeout(() => setExportProgress(null), 5000)
+    } finally {
+      try { if (encoder && encoder.state !== 'closed') encoder.close() } catch { /* already closed */ }
+      releaseExportVideos(loadedImages)
     }
-
-    setTimeout(() => setExportProgress(null), 1000)
   }
 
   const exportGif = async () => {
@@ -2260,11 +2282,14 @@ function App() {
       a.download = 'animation.gif'
       a.click()
       URL.revokeObjectURL(url)
+      setTimeout(() => setExportProgress(null), 1000)
     } catch (err) {
       console.error('GIF export failed:', err)
+      setExportProgress({ format: 'GIF', progress: 0, status: `Export failed: ${err?.message || err}` })
+      setTimeout(() => setExportProgress(null), 5000)
+    } finally {
+      releaseExportVideos(loadedImages)
     }
-
-    setTimeout(() => setExportProgress(null), 1000)
   }
 
   const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) : null
